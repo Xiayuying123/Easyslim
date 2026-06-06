@@ -1,0 +1,333 @@
+// 水油焖菜健康食谱与补充推荐逻辑
+const WATER_OIL_RECIPES = {
+  breakfast: [
+    {
+      name: '高纤燕麦蛋羹餐',
+      totalCalories: 320,
+      items: [
+        { name: '燕麦片', weight: 40, calories: 147 },
+        { name: '鸡蛋 (水煮)', weight: 50, calories: 71 },
+        { name: '脱脂牛奶', weight: 200, calories: 102 }
+      ],
+      steps: '燕麦片加水微波炉加热2分钟，搭配水煮蛋和脱脂牛奶食用。'
+    },
+    {
+      name: '牛油果全麦吐司蛋',
+      totalCalories: 350,
+      items: [
+        { name: '全麦吐司', weight: 70, calories: 172 },
+        { name: '鸡蛋 (无油煎)', weight: 50, calories: 73 },
+        { name: '番茄', weight: 100, calories: 19 },
+        { name: '混合坚果', weight: 15, calories: 86 }
+      ],
+      steps: '全麦面包烤热，放上煎蛋和番茄片，搭配适量坚果。'
+    },
+    {
+      name: '红薯温沙拉餐',
+      totalCalories: 310,
+      items: [
+        { name: '蒸红薯', weight: 150, calories: 129 },
+        { name: '鸡蛋 (水煮)', weight: 50, calories: 71 },
+        { name: '无糖酸奶', weight: 150, calories: 105 },
+        { name: '小番茄', weight: 50, calories: 10 }
+      ],
+      steps: '红薯切块蒸熟，搭配水煮蛋与酸奶，点缀小番茄。'
+    }
+  ],
+  
+  lunch: [
+    {
+      name: '水油焖西兰花鸡胸肉饭',
+      totalCalories: 550,
+      items: [
+        { name: '鸡胸肉', weight: 120, calories: 160 },
+        { name: '西兰花', weight: 150, calories: 51 },
+        { name: '胡萝卜', weight: 50, calories: 18 },
+        { name: '橄榄油', weight: 5, calories: 44 },
+        { name: '糙米饭', weight: 150, calories: 166 }
+      ],
+      steps: '【水油焖法】：平底锅放入50ml水、5ml橄榄油、鸡胸肉丁与西兰花、胡萝卜片。盖上锅盖，中火焖煮3-4分钟至熟，开盖用适量蚝油、蒜蓉、少许盐调味收汁。配糙米饭食用。'
+    },
+    {
+      name: '水油焖牛肉片鲜菇豆腐饭',
+      totalCalories: 580,
+      items: [
+        { name: '瘦牛肉片', weight: 100, calories: 125 },
+        { name: '豆腐', weight: 120, calories: 98 },
+        { name: '菌菇 (香菇/金针菇)', weight: 100, calories: 25 },
+        { name: '娃娃菜', weight: 150, calories: 25 },
+        { name: '橄榄油', weight: 5, calories: 44 },
+        { name: '紫薯', weight: 150, calories: 159 }
+      ],
+      steps: '【水油焖法】：锅中加入少量水和5ml油，铺上菌菇和豆腐。烧开后下牛肉片和娃娃菜，盖盖焖煮3分钟。牛肉变色熟透后，加少许生抽、黑胡椒调味。搭配蒸紫薯。'
+    },
+    {
+      name: '水油焖鲜虾菌菇魔芋丝饭',
+      totalCalories: 520,
+      items: [
+        { name: '基围虾仁', weight: 100, calories: 93 },
+        { name: '菌菇 (杏鲍菇)', weight: 100, calories: 25 },
+        { name: '生菜', weight: 150, calories: 22 },
+        { name: '橄榄油', weight: 5, calories: 44 },
+        { name: '白米饭', weight: 150, calories: 174 },
+        { name: '鸡蛋', weight: 50, calories: 71 }
+      ],
+      steps: '【水油焖法】：锅内倒少许水和5ml油，先焖杏鲍菇和虾仁2分钟，再加入生菜盖盖焖30秒。起锅前打入蛋液或直接用蒜泥生抽调味。配白米饭。'
+    }
+  ],
+  
+  dinner: [
+    {
+      name: '水油焖虾仁娃娃菜轻食',
+      totalCalories: 380,
+      items: [
+        { name: '基围虾仁', weight: 80, calories: 74 },
+        { name: '娃娃菜', weight: 200, calories: 34 },
+        { name: '木耳', weight: 50, calories: 13 },
+        { name: '橄榄油', weight: 3, calories: 26 },
+        { name: '玉米', weight: 150, calories: 168 }
+      ],
+      steps: '【水油焖法】：锅中放入少许水、3ml油，铺上娃娃菜和黑木耳，上面码放虾仁。盖盖焖煮3分钟，调入少许盐和白胡椒粉。搭配水煮玉米半根。'
+    },
+    {
+      name: '水油焖豆腐龙利鱼温沙拉',
+      totalCalories: 400,
+      items: [
+        { name: '龙利鱼/鳕鱼', weight: 120, calories: 126 },
+        { name: '豆腐', weight: 100, calories: 82 },
+        { name: '西兰花', weight: 100, calories: 34 },
+        { name: '橄榄油', weight: 3, calories: 26 },
+        { name: '蒸红薯', weight: 100, calories: 86 }
+      ],
+      steps: '【水油焖法】：鳕鱼块与豆腐下锅，倒入30ml水和3ml油，盖盖焖煮3分钟，再加入西兰花焖1分钟。用蒸鱼豉油调味。搭配蒸红薯。'
+    },
+    {
+      name: '水油焖时蔬牛肉丝轻食',
+      totalCalories: 420,
+      items: [
+        { name: '瘦牛肉丝', weight: 80, calories: 100 },
+        { name: '油麦菜/生菜', weight: 200, calories: 30 },
+        { name: '香菇', weight: 50, calories: 13 },
+        { name: '橄榄油', weight: 4, calories: 35 },
+        { name: '糙米饭', weight: 100, calories: 111 }
+      ],
+      steps: '【水油焖法】：牛肉丝先用生抽淀粉抓匀。锅内下50ml水、4ml油，先焖香菇和牛肉丝2分钟，下绿叶菜焖30秒，起锅撒黑胡椒。搭配糙米饭。'
+    }
+  ]
+};
+
+// 补餐备选库 (食物名, 单份克重, 单份热量)
+const SNACK_RECOMMENDATIONS = [
+  { name: '混合坚果', weight: 15, calories: 90, icon: '🥜', desc: '优质脂肪与膳食纤维，抗饿神器' },
+  { name: '无糖酸奶', weight: 135, calories: 95, icon: '🥛', desc: '补充优质蛋白质与钙质，促进肠道蠕动' },
+  { name: '水煮蛋', weight: 50, calories: 71, icon: '🥚', desc: '纯粹优质蛋白质，饱腹感强' },
+  { name: '苹果', weight: 150, calories: 78, icon: '🍎', desc: '富含果胶与维生素，低热量饱腹' },
+  { name: '无糖豆浆', weight: 250, calories: 80, icon: '🥛', desc: '植物蛋白，暖胃低卡' },
+  { name: '香蕉', weight: 100, calories: 89, icon: '🍌', desc: '快速补充碳水与钾元素，适合运动前后' },
+  { name: '即食鸡胸肉', weight: 80, calories: 105, icon: '🍗', desc: '高蛋白低脂肪，迅速补充纯蛋白' },
+  { name: '黄瓜', weight: 200, calories: 32, icon: '🥒', desc: '极低热量，补水利尿' },
+  { name: '圣女果/小番茄', weight: 150, calories: 29, icon: '🍅', desc: '富含番茄红素，酸甜开胃低热量' }
+];
+
+/**
+ * 根据身高、体重、年龄、性别、运动指数计算 BMR & TDEE
+ */
+function calculateBMRAndTDEE(weight, height, age, gender, activityLevel) {
+  // Mifflin-St Jeor 公式
+  let bmr = 0;
+  if (gender === 'male') {
+    bmr = 10 * weight + 6.25 * height - 5 * age + 5;
+  } else {
+    bmr = 10 * weight + 6.25 * height - 5 * age - 161;
+  }
+  
+  // 运动指数系数
+  const activityMultipliers = {
+    sedentary: 1.2,       // 极少运动 (久坐)
+    lightly_active: 1.375, // 轻度运动 (每周1-3次轻量运动)
+    moderately_active: 1.55, // 中度运动 (每周3-5次中强度运动)
+    very_active: 1.725    // 重度运动 (每周6-7次高强度运动)
+  };
+  
+  const multiplier = activityMultipliers[activityLevel] || 1.2;
+  const tdee = bmr * multiplier;
+  
+  return {
+    bmr: Math.round(bmr),
+    tdee: Math.round(tdee)
+  };
+}
+
+/**
+ * 根据减重目标计算每日热量目标
+ * @param {number} currentWeight - 当前体重 (kg)
+ * @param {number} targetWeight - 目标体重 (kg)
+ * @param {number} durationMonths - 目标时长 (月)
+ * @param {object} bmrTdee - { bmr, tdee }
+ * @returns {object} { targetCalories, dailyDeficit, warning }
+ */
+function calculateTargetCalories(currentWeight, targetWeight, durationMonths, bmrTdee) {
+  const { bmr, tdee } = bmrTdee;
+  const totalWeightToLose = currentWeight - targetWeight;
+  
+  // 1kg 脂肪约等于 7700 kcal
+  const totalKcalDeficit = totalWeightToLose * 7700;
+  const totalDays = durationMonths * 30.5;
+  const dailyDeficit = totalKcalDeficit / totalDays;
+  
+  let targetCalories = tdee - dailyDeficit;
+  let warning = '';
+  
+  // 减重安全阈值：每日热量赤字不宜超过 1000 kcal，且摄入不低于基础代谢率 (BMR) 的 90%，且绝不低于 1000 kcal (女性) 或 1200 kcal (男性)
+  const safeMinLimit = bmr * 0.9;
+  if (targetCalories < safeMinLimit) {
+    targetCalories = safeMinLimit;
+    warning = '⚠️ 您的减重目标速度过快，为保护代谢和避免肌肉流失，系统已将每日热量预算调整为安全底线（基础代谢的90%）。建议延长减重周期或配合适量运动。';
+  }
+  
+  if (targetCalories > tdee - 200 && totalWeightToLose > 0) {
+    // 保证至少有 200 kcal 的赤字，否则减重不明显
+    targetCalories = tdee - 300;
+  }
+  
+  return {
+    targetCalories: Math.round(targetCalories),
+    dailyDeficit: Math.round(tdee - targetCalories),
+    warning: warning
+  };
+}
+
+/**
+ * 根据每日热量目标，动态调整推荐食谱中食材的克重，使其卡路里总和与目标契合
+ * @param {number} dailyTargetCalories - 每日目标卡路里
+ * @returns {object} 包含三餐调整后的推荐食谱
+ */
+function generateDailyRecipes(dailyTargetCalories) {
+  // 推荐三餐比例：早餐 30%，午餐 40%，晚餐 30%
+  const breakfastTarget = dailyTargetCalories * 0.30;
+  const lunchTarget = dailyTargetCalories * 0.40;
+  const dinnerTarget = dailyTargetCalories * 0.30;
+  
+  // 随机挑选一套食谱模板
+  const selectRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  
+  const bTemplate = JSON.parse(JSON.stringify(selectRandom(WATER_OIL_RECIPES.breakfast)));
+  const lTemplate = JSON.parse(JSON.stringify(selectRandom(WATER_OIL_RECIPES.lunch)));
+  const dTemplate = JSON.parse(JSON.stringify(selectRandom(WATER_OIL_RECIPES.dinner)));
+  
+  // 比例调整因子函数
+  const scaleRecipe = (recipe, targetKcal) => {
+    const originalCalories = recipe.totalCalories;
+    const factor = targetKcal / originalCalories;
+    
+    let currentSum = 0;
+    recipe.items.forEach((item, idx) => {
+      // 调整克重与卡路里
+      item.weight = Math.round(item.weight * factor);
+      item.calories = Math.round(item.calories * factor);
+      currentSum += item.calories;
+    });
+    recipe.totalCalories = currentSum;
+    return recipe;
+  };
+  
+  return {
+    breakfast: scaleRecipe(bTemplate, breakfastTarget),
+    lunch: scaleRecipe(lTemplate, lunchTarget),
+    dinner: scaleRecipe(dTemplate, dinnerTarget),
+    totalCalories: bTemplate.totalCalories + lTemplate.totalCalories + dTemplate.totalCalories
+  };
+}
+
+/**
+ * 智能补餐推荐算法：当摄入量未达标时，推荐吃什么
+ * @param {number} remainingCalories - 剩余额度 (大卡)
+ * @returns {Array} 推荐的食物列表，包含克重和热量
+ */
+function getSmartSnackRecommendations(remainingCalories) {
+  if (remainingCalories <= 30) return []; // 剩余热量很少时不推荐
+  
+  const recommendations = [];
+  
+  // 寻找能够填补剩余额度的最佳搭配组合 (最多推荐 3 个不同方案)
+  // 方案 A: 纯蛋白/饱腹类 (如鸡蛋、鸡胸肉)
+  // 方案 B: 坚果/健康脂肪类 (如混合坚果)
+  // 方案 C: 水果/维矿类 (如苹果、小番茄)
+  
+  // 组合方案 A: 水煮蛋/鸡胸肉
+  let caloriesA = 0;
+  let itemsA = [];
+  if (remainingCalories >= 100) {
+    const chicken = SNACK_RECOMMENDATIONS.find(x => x.name === '即食鸡胸肉');
+    const factor = Math.min(1.5, Math.max(0.5, (remainingCalories * 0.7) / chicken.calories));
+    const wt = Math.round(chicken.weight * factor);
+    const cal = Math.round(chicken.calories * factor);
+    itemsA.push({ name: chicken.name, weight: wt, calories: cal, icon: chicken.icon, desc: chicken.desc });
+    caloriesA += cal;
+  } else {
+    const egg = SNACK_RECOMMENDATIONS.find(x => x.name === '水煮蛋');
+    itemsA.push({ name: egg.name, weight: egg.weight, calories: egg.calories, icon: egg.icon, desc: egg.desc });
+    caloriesA += egg.calories;
+  }
+  recommendations.push({ title: '💪 纯享优质高蛋白方案', items: itemsA, totalCalories: caloriesA });
+  
+  // 组合方案 B: 坚果 + 酸奶 (如果热量充足)
+  let caloriesB = 0;
+  let itemsB = [];
+  const yogurt = SNACK_RECOMMENDATIONS.find(x => x.name === '无糖酸奶');
+  const nuts = SNACK_RECOMMENDATIONS.find(x => x.name === '混合坚果');
+  
+  if (remainingCalories >= 180) {
+    itemsB.push({ name: yogurt.name, weight: yogurt.weight, calories: yogurt.calories, icon: yogurt.icon });
+    itemsB.push({ name: nuts.name, weight: nuts.weight, calories: nuts.calories, icon: nuts.icon });
+    caloriesB = yogurt.calories + nuts.calories;
+    recommendations.push({ title: '🥜 坚果酸奶元气方案', items: itemsB, totalCalories: caloriesB });
+  } else {
+    // 热量少，只推荐酸奶或坚果
+    const item = remainingCalories > 90 ? yogurt : nuts;
+    itemsB.push({ name: item.name, weight: item.weight, calories: item.calories, icon: item.icon, desc: item.desc });
+    caloriesB = item.calories;
+    recommendations.push({ title: '🥛 饱腹高钙补给方案', items: itemsB, totalCalories: caloriesB });
+  }
+  
+  // 组合方案 C: 水果类
+  let caloriesC = 0;
+  let itemsC = [];
+  const apple = SNACK_RECOMMENDATIONS.find(x => x.name === '苹果');
+  const cucumber = SNACK_RECOMMENDATIONS.find(x => x.name === '黄瓜');
+  const tomato = SNACK_RECOMMENDATIONS.find(x => x.name === '圣女果/小番茄');
+  
+  if (remainingCalories >= 110) {
+    itemsC.push({ name: apple.name, weight: apple.weight, calories: apple.calories, icon: apple.icon });
+    caloriesC += apple.calories;
+    if (remainingCalories - apple.calories >= 30) {
+      itemsC.push({ name: cucumber.name, weight: cucumber.weight, calories: cucumber.calories, icon: cucumber.icon });
+      caloriesC += cucumber.calories;
+    }
+  } else {
+    itemsC.push({ name: tomato.name, weight: tomato.weight, calories: tomato.calories, icon: tomato.icon });
+    caloriesC += tomato.calories;
+  }
+  recommendations.push({ title: '🍎 清爽低卡多维方案', items: itemsC, totalCalories: caloriesC });
+  
+  return recommendations.filter(r => r.totalCalories <= remainingCalories + 30);
+}
+
+// 导出模块 (支持浏览器 global 加载)
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    WATER_OIL_RECIPES,
+    SNACK_RECOMMENDATIONS,
+    calculateBMRAndTDEE,
+    calculateTargetCalories,
+    generateDailyRecipes,
+    getSmartSnackRecommendations
+  };
+} else {
+  window.WATER_OIL_RECIPES = WATER_OIL_RECIPES;
+  window.SNACK_RECOMMENDATIONS = SNACK_RECOMMENDATIONS;
+  window.calculateBMRAndTDEE = calculateBMRAndTDEE;
+  window.calculateTargetCalories = calculateTargetCalories;
+  window.generateDailyRecipes = generateDailyRecipes;
+  window.getSmartSnackRecommendations = getSmartSnackRecommendations;
+}

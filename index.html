@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>轻盈减重助手 - 高颜值智能健康追踪应用</title>
+  
+  <!-- iOS PWA meta tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="轻盈减重">
+  <link rel="apple-touch-icon" href="logo.svg">
+  
+  <!-- Manifest & Stylesheet -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+  
+  <!-- Puter.js for Keyless AI Integration -->
+  <script src="https://js.puter.com/v2/"></script>
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- Desktop Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="logo-container">
+        <img class="logo-img" src="logo.svg" alt="Logo">
+        <span class="logo-text">轻盈减重</span>
+      </div>
+      <nav class="nav-links">
+        <button class="nav-item active" data-tab-target="dashboard">
+          <svg viewBox="0 0 24 24"><path d="M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z"/></svg>
+          今日概览
+        </button>
+        <button class="nav-item" data-tab-target="eat">
+          <svg viewBox="0 0 24 24"><path d="M11,9H9V2H7V9H5V2H3V9C3,11.12 4.5,12.87 6.5,13.14V22H9.5V13.14C11.5,12.87 13,11.12 13,9V2H11V9M16,2V13H19V22H21V2C18.24,2 16,4.24 16,2Z"/></svg>
+          饮食记录
+        </button>
+        <button class="nav-item" data-tab-target="recipe">
+          <svg viewBox="0 0 24 24"><path d="M19,3H5C3.89,3 3,3.89 3,5V19C3,20.1 3.89,21 5,21H19C20.1,21 21,20.1 21,19V5C21,3.89 20.1,3 19,3M19,19H5V5H19V19M17,14H7V12H17V14M17,10H7V8H17V10M13,16H7V15H13V16Z"/></svg>
+          健康食谱
+        </button>
+        <button class="nav-item" data-tab-target="sheet">
+          <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2m-2 10H7v-2h10v2m0-4H7V7h10v2m0 8H7v-2h10v2z"/></svg>
+          计划总览
+        </button>
+        <button class="nav-item" data-tab-target="analytics">
+          <svg viewBox="0 0 24 24"><path d="M16,11.78L20.24,4.45L21.97,5.45L16.74,14.5L10.23,10.75L5.46,19H22V21H2V3H4V17.54L9.5,8L16,11.78Z"/></svg>
+          数据分析
+        </button>
+      </nav>
+      
+      <!-- Bottom Section inside Sidebar -->
+      <div style="margin-top:auto; display:flex; flex-direction:column; gap:8px;">
+        <button class="btn btn-secondary" style="width:100%" onclick="openModal('profileModal')">
+          <svg style="width:18px;height:18px" viewBox="0 0 24 24"><path fill="currentColor" d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/></svg>
+          设置减重目标
+        </button>
+        <button class="btn btn-danger btn-sm" onclick="logout()" style="width:100%; border-radius:12px; padding:10px;">
+          🚪 退出当前账号
+        </button>
+      </div>
+    </aside>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="mobile-nav">
+      <button class="mobile-nav-item active" data-tab-target="dashboard">
+        <svg viewBox="0 0 24 24"><path d="M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z"/></svg>
+        <span>概览</span>
+      </button>
+      <button class="mobile-nav-item" data-tab-target="eat">
+        <svg viewBox="0 0 24 24"><path d="M11,9H9V2H7V9H5V2H3V9C3,11.12 4.5,12.87 6.5,13.14V22H9.5V13.14C11.5,12.87 13,11.12 13,9V2H11V9M16,2V13H19V22H21V2C18.24,2 16,4.24 16,2Z"/></svg>
+        <span>饮食</span>
+      </button>
+      <button class="mobile-nav-item" data-tab-target="recipe">
+        <svg viewBox="0 0 24 24"><path d="M19,3H5C3.89,3 3,3.89 3,5V19C3,20.1 3.89,21 5,21H19C20.1,21 21,20.1 21,19V5C21,3.89 20.1,3 19,3M19,19H5V5H19V19M17,14H7V12H17V14M17,10H7V8H17V10M13,16H7V15H13V16Z"/></svg>
+        <span>食谱</span>
+      </button>
+      <button class="mobile-nav-item" data-tab-target="sheet">
+        <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2m-2 10H7v-2h10v2m0-4H7V7h10v2m0 8H7v-2h10v2z"/></svg>
+        <span>总览</span>
+      </button>
+      <button class="mobile-nav-item" data-tab-target="analytics">
+        <svg viewBox="0 0 24 24"><path d="M16,11.78L20.24,4.45L21.97,5.45L16.74,14.5L10.23,10.75L5.46,19H22V21H2V3H4V17.54L9.5,8L16,11.78Z"/></svg>
+        <span>数据</span>
+      </button>
+    </nav>
+
+    <!-- Mobile Quick-Add Floating Action Button -->
+    <button class="fab" id="mobileFab">
+      <svg viewBox="0 0 24 24"><path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/></svg>
+    </button>
+
+    <!-- Main Dynamic Content Wrapper -->
+    <main class="main-content">
+      
+      <!-- Top Action Bar (Universal Date Picker) -->
+      <div class="header-row">
+        <div class="header-title">
+          <p>智能卡路里 &amp; 水油焖菜食谱定制 | 👤 账号: <span id="currentUserLabel" style="font-weight:600; color:var(--primary);">--</span></p>
+          <h1 id="currentDateLabel">6月5日</h1>
+        </div>
+        <div class="header-actions">
+          <div class="recipe-day-selector">
+            <button class="btn btn-secondary btn-icon btn-sm" id="prevDateBtn" style="padding:4px 8px">
+              <svg style="width:16px;height:16px;transform:rotate(180deg)" viewBox="0 0 24 24"><path fill="currentColor" d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/></svg>
+            </button>
+            <span style="font-weight:600; font-size:14px; margin:0 8px">切换日期</span>
+            <button class="btn btn-secondary btn-icon btn-sm" id="nextDateBtn" style="padding:4px 8px">
+              <svg style="width:16px;height:16px" viewBox="0 0 24 24"><path fill="currentColor" d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/></svg>
+            </button>
+          </div>
+          <button class="btn btn-primary btn-sm mobile-only" style="display:none" onclick="openModal('profileModal')">目标设置</button>
+        </div>
+      </div>
+
+      <!-- ============================================== -->
+      <!-- SECTION 1: DASHBOARD (今日概览) -->
+      <!-- ============================================== -->
+      <section class="page-section active" id="dashboardSection">
+        <div class="summary-grid">
+          
+          <!-- Left: Calorie Ring Tracker -->
+          <div class="card">
+            <div class="card-title">
+              <span>今日能量控制环</span>
+              <div class="icon-badge">⚡</div>
+            </div>
+            <div class="progress-container">
+              <div class="circle-progress-wrapper">
+                <svg class="circle-progress-svg" viewBox="0 0 160 160">
+                  <defs>
+                    <linearGradient id="progressGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stop-color="#3b82f6" />
+                      <stop offset="100%" stop-color="#10b981" />
+                    </linearGradient>
+                  </defs>
+                  <circle class="circle-bg" cx="80" cy="80" r="70" />
+                  <circle class="circle-val" id="circleVal" cx="80" cy="80" r="70" />
+                </svg>
+                <div class="circle-text">
+                  <span class="circle-number" id="caloriesCircleNumber">0</span>
+                  <span class="circle-label">已摄入 kcal</span>
+                </div>
+              </div>
+              
+              <div class="progress-stats-list">
+                <div class="stat-row">
+                  <span class="stat-label">🎯 减重预算热量</span>
+                  <span class="stat-value"><span id="caloriesTargetVal">0</span> kcal</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">🥑 已经摄入热量</span>
+                  <span class="stat-value highlight"><span id="caloriesEatenVal">0</span> kcal</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">⚖️ 剩余可摄入额度</span>
+                  <span class="stat-value" style="color:var(--primary)"><span id="caloriesRemainingVal">0</span> kcal</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Right: Weight Morning/Bedtime log -->
+          <div class="card">
+            <div class="card-title">
+              <span>今日体重波动</span>
+              <div class="icon-badge">⚖️</div>
+            </div>
+            <div class="weight-card-grid">
+              <div class="weight-sub-box morning">
+                <span class="weight-box-title">🌅 清晨空腹体重</span>
+                <div class="weight-box-value">
+                  <input type="number" id="morningWeightInput" class="weight-box-input" placeholder="输入体重" step="0.1">
+                  <span>kg</span>
+                </div>
+              </div>
+              <div class="weight-sub-box bedtime">
+                <span class="weight-box-title">🌙 睡前放松体重</span>
+                <div class="weight-box-value">
+                  <input type="number" id="bedtimeWeightInput" class="weight-box-input" placeholder="输入体重" step="0.1">
+                  <span>kg</span>
+                </div>
+              </div>
+            </div>
+            <div id="weightDiffBox" style="font-size:14px; font-weight:600; text-align:center; margin-bottom: 12px;">
+              早晚体重差: <span style="color:var(--text-muted)">缺数据</span>
+            </div>
+            <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+              <div class="form-group" style="gap: 4px;">
+                <label for="exerciseInput" style="font-size: 11px; display: flex; align-items: center; gap: 4px;">🏃‍♂️ 今日运动与时长</label>
+                <input type="text" id="exerciseInput" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 6px 12px; font-size: 13px; color: var(--text-main);" placeholder="如：跑步30分钟、跳绳1000下">
+              </div>
+              <div class="form-group" style="gap: 4px;">
+                <label for="notesInput" style="font-size: 11px; display: flex; align-items: center; gap: 4px;">📝 餐饮/外食与其它备注</label>
+                <input type="text" id="notesInput" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 6px 12px; font-size: 13px; color: var(--text-main);" placeholder="如：晚上聚餐、爆卡、无糖可乐等">
+              </div>
+            </div>
+          </div>
+          
+        </div>
+        
+        <!-- Bottom: Today's Recipe & Dynamic Feedback -->
+        <div style="display:grid; grid-template-columns: 1fr 1.3fr; gap:24px;" class="summary-grid">
+          <!-- Quick Recipe View -->
+          <div class="card" style="display:flex; flex-direction:column; justify-content:space-between;">
+            <div class="card-title">
+              <span>今日水油焖菜食谱</span>
+              <button class="btn btn-secondary btn-sm" data-tab-target="recipe" style="padding:4px 8px">查看完整</button>
+            </div>
+            <div id="dashboardRecipeQuickView">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+          
+          <!-- Meal category breakdown card -->
+          <div class="card">
+            <div class="card-title">
+              <span>每餐已摄入热量分布</span>
+              <button class="btn btn-secondary btn-sm" data-tab-target="eat" style="padding:4px 8px">去记录</button>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:12px;">
+              <div class="stat-row"><span class="stat-label">🌅 早餐已吃</span><span class="stat-value" id="calBreakfast">0 kcal</span></div>
+              <div class="stat-row"><span class="stat-label">☀️ 午餐已吃</span><span class="stat-value" id="calLunch">0 kcal</span></div>
+              <div class="stat-row"><span class="stat-label">🌙 晚餐已吃</span><span class="stat-value" id="calDinner">0 kcal</span></div>
+              <div class="stat-row"><span class="stat-label">🍎 额外加餐已吃</span><span class="stat-value" id="calExtra">0 kcal</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Strategy Suggestion Card (一页式总结与后续建议) -->
+        <div class="card strategy-card">
+          <div class="card-title">
+            <span>📝 今日健康评估与后续策略</span>
+            <div class="icon-badge" style="color:var(--primary)">📋</div>
+          </div>
+          <div class="strategy-list" id="strategyList">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- SECTION 2: DIET LOGGER (饮食记录) -->
+      <!-- ============================================== -->
+      <section class="page-section" id="eatSection">
+        <div class="logger-layout">
+          
+          <!-- Left Panel: Text Input & Parser -->
+          <div class="card">
+            <div class="card-title">
+              <span>饮食打卡 &amp; 智能计算</span>
+              <div class="icon-badge">🍳</div>
+            </div>
+            
+            <div class="meal-tabs-selector">
+              <button class="meal-tab active" data-meal="breakfast">早餐</button>
+              <button class="meal-tab" data-meal="lunch">午餐</button>
+              <button class="meal-tab" data-meal="dinner">晚餐</button>
+              <button class="meal-tab" data-meal="extra">三餐之外</button>
+            </div>
+            
+            <div class="form-group" style="margin-bottom:16px;">
+              <label for="dietRawInput">告诉我你吃了什么：</label>
+              <textarea id="dietRawInput" rows="3" placeholder="例如：早餐吃了2个水煮蛋，1片全麦吐司和一盒纯牛奶。&#10;系统将自动为您提取食材，估算克重并计算总大卡。"></textarea>
+            </div>
+            
+            <div style="display:flex; gap:12px;">
+              <button class="btn btn-primary" id="parseDietBtn" style="flex:1;">
+                <svg style="width:18px;height:18px" viewBox="0 0 24 24"><path fill="currentColor" d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M11,17H13V15H11V17M11,13H13V7H11V13Z"/></svg>
+                智能卡路里估算
+              </button>
+              <button class="btn btn-secondary" id="addCustomFoodBtn" title="手动加入一样食材">
+                + 自定义食物
+              </button>
+            </div>
+            
+            <!-- Result listing area -->
+            <div style="margin-top:24px;">
+              <h3 style="font-size:15px; font-weight:600; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+                <span>📋 本餐食物明细</span>
+                <span style="font-size:12px; color:var(--text-muted); font-weight:normal;">(克重可直接修改微调)</span>
+              </h3>
+              <div class="parsed-food-list" id="parsedFoodList">
+                <div style="text-align:center; color:var(--text-muted); padding:20px; font-size:14px;">输入上方吃了什么，并点击“智能卡路里估算”</div>
+              </div>
+            </div>
+            
+            <button class="btn btn-primary" id="saveMealBtn" style="width:100%; margin-top:20px; display:none;">
+              确认记录至今日记录
+            </button>
+          </div>
+          
+          <!-- Right Panel: Smart Snack Recommendations (智能补餐) -->
+          <div class="card snack-rec-panel">
+            <div class="card-title">
+              <span>💡 智能补餐推荐</span>
+              <div class="icon-badge">🍏</div>
+            </div>
+            <p style="color:var(--text-muted); font-size:12px; margin-bottom:16px;">
+              如果您的今日摄入未满足根据计划设定的代谢安全上限，系统已为您量身计算并推荐以下补餐组合：
+            </p>
+            <div id="smartSnackPanel">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+          
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- SECTION 3: HEALTHY RECIPE (健康食谱) -->
+      <!-- ============================================== -->
+      <section class="page-section" id="recipeSection">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h2 style="font-size:20px; font-weight:700;">今日推荐水油焖菜食谱</h2>
+          <div style="font-size:13px; color:var(--text-muted)">
+            每日目标: <span id="recipeTargetCaloriesLabel" style="color:var(--primary); font-weight:700">0</span> kcal | 
+            当前食谱: <span id="recipeActualCaloriesLabel" style="font-weight:700">0</span> kcal
+          </div>
+        </div>
+        
+        <div class="recipe-cards-container" id="recipeCardsContainer">
+          <!-- Dynamically populated 3 cards -->
+        </div>
+        
+        <div style="display:flex; justify-content:center; margin-top:10px;">
+          <button class="btn btn-secondary" id="regenerateRecipeBtn">
+            🔄 不喜欢这套？帮我重新换一套减脂食谱
+          </button>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- SECTION: PLAN SHEET OVERVIEW (计划总览) -->
+      <!-- ============================================== -->
+      <section class="page-section" id="sheetSection">
+        <div class="card">
+          <div class="card-title">
+            <span>🏁 阶段减重里程碑目标</span>
+            <div class="icon-badge" style="color:var(--primary)">🏆</div>
+          </div>
+          <!-- Milestone grids: Starting weight, Stage goals -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px;" id="milestoneGrid">
+            <!-- Dynamically populated milestones -->
+          </div>
+        </div>
+
+        <div class="card" style="overflow: hidden; padding: 0;">
+          <div class="card-title" style="padding: 24px 24px 12px 24px; margin-bottom: 0;">
+            <span>📅 减重数据月历总览 (Excel 风格)</span>
+            <span style="font-size: 12px; color: var(--text-muted); font-weight: normal;">(轻触某行可跳转至该日进行打卡修改)</span>
+          </div>
+          <div style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;" id="sheetTableWrapper">
+            <!-- Table will be rendered here dynamically -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- SECTION 4: DATA ANALYTICS (数据分析 & 设置) -->
+      <!-- ============================================== -->
+      <section class="page-section" id="analyticsSection">
+        
+        <!-- Weight Trend SVG Line Chart -->
+        <div class="card">
+          <div class="card-title">
+            <span>过去7天晨晚体重波动图</span>
+            <div class="icon-badge">📈</div>
+          </div>
+          <div class="chart-container" id="weightChartContainer">
+            <!-- Dynamic SVG chart goes here -->
+          </div>
+          <div class="chart-legend">
+            <div class="legend-item">
+              <div class="legend-color morning"></div>
+              <span>清晨空腹体重</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color bedtime"></div>
+              <span>睡前体重</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="summary-grid">
+          <!-- Left: User profile details -->
+          <div class="card">
+            <div class="card-title">
+              <span>我的个人身体档案</span>
+              <div style="display:flex; gap:8px;">
+                <button class="btn btn-secondary btn-sm" onclick="openModal('profileModal')" style="padding:4px 8px">修改指标</button>
+                <button class="btn btn-danger btn-sm" onclick="logout()" style="padding:4px 8px">退出登录</button>
+              </div>
+            </div>
+            <div id="analyticsProfileDetails">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+          
+          <!-- Right: Daily historical record logs -->
+          <div class="card">
+            <div class="card-title">
+              <span>历史记录日志</span>
+              <div class="icon-badge">📅</div>
+            </div>
+            <div id="historyLogsContainer" style="max-height:220px; overflow-y:auto; padding-right:6px;">
+              <!-- Dynamically populated list -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Data Sync/Migration Backup Card -->
+        <div class="card" style="margin-top: 8px;">
+          <div class="card-title">
+            <span>📲 数据多端迁移与同步备份</span>
+            <div class="icon-badge">💾</div>
+          </div>
+          <p style="color:var(--text-muted); font-size:12px; margin-bottom:16px;">
+            本工具为离线优先应用，数据默认存储在当前设备的本地浏览器中。
+            您可以通过以下功能导出数据，并在另一台设备上导入合并，实现多端同步：
+          </p>
+          <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+            <button class="btn btn-primary" id="exportDataBtn">
+              📤 导出此设备备份
+            </button>
+            <div style="position: relative; overflow: hidden; display: inline-block;">
+              <button class="btn btn-secondary" style="pointer-events: none;">📥 导入并合并备份</button>
+              <input type="file" id="importDataInput" accept=".json" style="position: absolute; font-size: 100px; right: 0; top: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;">
+            </div>
+            <span style="font-size: 11px; color: var(--text-muted);">
+              (注：导入采用“合并覆盖”策略，合并两端所有的打卡日志，不会造成数据丢失)
+            </span>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODALS -->
+  <!-- ============================================== -->
+  
+  <!-- Login / Register Overlay -->
+  <div class="auth-overlay" id="authOverlay" style="display: none;">
+    <div class="auth-card">
+      <div class="auth-logo">
+        <img src="logo.svg" alt="Logo">
+        <h2>轻盈减重助手</h2>
+      </div>
+      
+      <!-- Tabs -->
+      <div class="auth-tabs">
+        <button class="auth-tab-btn active" id="authTabLogin" type="button">账号登录</button>
+        <button class="auth-tab-btn" id="authTabRegister" type="button">注册账号</button>
+      </div>
+      
+      <!-- Login Form -->
+      <form id="loginForm">
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label for="loginUser">账号（自定义用户名）</label>
+          <input type="text" id="loginUser" required placeholder="请输入您的账号名称">
+        </div>
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label for="loginPass">密码</label>
+          <input type="password" id="loginPass" required placeholder="请输入密码">
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
+          <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-muted); cursor:pointer; font-weight:normal;">
+            <input type="checkbox" id="loginRemember" style="accent-color:var(--primary); cursor:pointer; width:14px; height:14px;"> 记住密码
+          </label>
+        </div>
+        <div class="auth-error" id="loginError" style="color:var(--danger); font-size:12px; margin-bottom:12px; display:none;"></div>
+        <button type="submit" class="btn btn-primary" style="width: 100%;">立即登录</button>
+      </form>
+      
+      <!-- Register Form (Hidden by default) -->
+      <form id="registerForm" style="display: none;">
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label for="registerUser">新账号（自定义用户名）</label>
+          <input type="text" id="registerUser" required placeholder="请输入您想设定的账号名称">
+        </div>
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label for="registerPass">密码</label>
+          <input type="password" id="registerPass" required placeholder="请设置密码">
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
+          <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-muted); cursor:pointer; font-weight:normal;">
+            <input type="checkbox" id="registerRemember" style="accent-color:var(--primary); cursor:pointer; width:14px; height:14px;"> 记住密码
+          </label>
+        </div>
+        <div class="auth-error" id="registerError" style="color:var(--danger); font-size:12px; margin-bottom:12px; display:none;"></div>
+        <button type="submit" class="btn btn-primary" style="width: 100%;">注册并登录</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Profile Configuration Modal -->
+  <div class="modal-overlay" id="profileModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>配置个人减重目标</h2>
+        <button class="close-btn" onclick="closeModal('profileModal')">
+          <svg style="width:24px;height:24px" viewBox="0 0 24 24"><path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/></svg>
+        </button>
+      </div>
+      <form id="profileForm">
+        <div class="modal-body">
+          <p style="color:var(--text-muted); font-size:13px;">我们需要您的身高体重信息计算每日基础代谢率 (BMR) 与每日消耗总热量 (TDEE)，从而为您定制合理安全的卡路里亏空目标。</p>
+          
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="pHeight">身高 (厘米)*</label>
+              <div class="stepper-container">
+                <button type="button" class="stepper-btn" onclick="adjustStepper('pHeight', -1)">
+                  <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19,13H5V11H19V13Z"/></svg>
+                </button>
+                <input type="number" id="pHeight" required min="100" max="250" placeholder="cm">
+                <button type="button" class="stepper-btn" onclick="adjustStepper('pHeight', 1)">
+                  <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="pWeight">当前体重 (公斤)*</label>
+              <div class="stepper-container">
+                <button type="button" class="stepper-btn" onclick="adjustStepper('pWeight', -1)">
+                  <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19,13H5V11H19V13Z"/></svg>
+                </button>
+                <input type="number" id="pWeight" required min="30" max="250" step="0.1" placeholder="kg">
+                <button type="button" class="stepper-btn" onclick="adjustStepper('pWeight', 1)">
+                  <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="pTargetWeight">目标体重 (公斤)*</label>
+              <div class="stepper-container">
+                <button type="button" class="stepper-btn" onclick="adjustStepper('pTargetWeight', -1)">
+                  <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19,13H5V11H19V13Z"/></svg>
+                </button>
+                <input type="number" id="pTargetWeight" required min="30" max="250" step="0.1" placeholder="目标kg">
+                <button type="button" class="stepper-btn" onclick="adjustStepper('pTargetWeight', 1)">
+                  <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="pDuration">期望计划时长*</label>
+              <select id="pDuration" required>
+                <option value="1">1 个月达到</option>
+                <option value="2" selected>2 个月达到</option>
+                <option value="3">3 个月达到</option>
+                <option value="6">6 个月达到</option>
+                <option value="custom">自定义输入...</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="form-group" id="pDurationCustomGroup" style="display:none; margin-top: 4px;">
+            <label for="pDurationCustom">自定义计划时长 (个月)*</label>
+            <div class="stepper-container">
+              <button type="button" class="stepper-btn" onclick="adjustStepper('pDurationCustom', -1)">
+                <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19,13H5V11H19V13Z"/></svg>
+              </button>
+              <input type="number" id="pDurationCustom" min="1" max="24" placeholder="请输入月数，例如：4">
+              <button type="button" class="stepper-btn" onclick="adjustStepper('pDurationCustom', 1)">
+                <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/></svg>
+              </button>
+            </div>
+          </div>
+          
+          <div class="form-group" style="margin-top: 8px; border-top: 1px solid var(--border-color); padding-top: 12px; margin-bottom: 8px; gap: 10px;">
+            <label style="font-weight:600; color:var(--text-main); display:flex; align-items:center; gap:6px;">🤖 文本 AI 饮食解析配置</label>
+            
+            <div class="form-group">
+              <label for="pAiProvider">选择 AI 渠道*</label>
+              <select id="pAiProvider" style="width:100%;">
+                <option value="puter" selected>内置免配置通道 (基于 Puter AI, 免Key直连)</option>
+                <option value="gemini">Google Gemini (自备 Gemini API Key)</option>
+                <option value="deepseek">DeepSeek (自备 DeepSeek API Key)</option>
+                <option value="siliconflow">硅基流动 SiliconFlow (自备 硅基流动 Key)</option>
+                <option value="custom">自定义 OpenAI 兼容接口 (如自建代理、中转等)</option>
+              </select>
+            </div>
+            
+            <div class="form-group" id="pAiUrlGroup" style="display:none;">
+              <label for="pAiUrl">API 接口地址 (Base URL)*</label>
+              <input type="text" id="pAiUrl" placeholder="例如：https://api.deepseek.com/v1">
+            </div>
+
+            <div class="form-group" id="pAiModelGroup" style="display:none;">
+              <label for="pAiModel">模型名称 (Model)*</label>
+              <input type="text" id="pAiModel" placeholder="例如：deepseek-chat">
+            </div>
+            
+            <div class="form-group" id="pAiKeyGroup" style="display:none;">
+              <label for="pAiKey" style="display:flex; justify-content:space-between; align-items:center;">
+                <span id="pAiKeyLabel">🔑 API Key*</span>
+                <a id="pAiKeyLink" href="#" target="_blank" style="color:var(--primary); font-size:11px; text-decoration:none;">获取 Key</a>
+              </label>
+              <input type="password" id="pAiKey" placeholder="请输入您的 API Key">
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
+              <button type="button" class="btn btn-secondary btn-sm" id="testAiBtn" style="width:100%; justify-content:center;">
+                ⚡ 测试 AI 连接
+              </button>
+              <div id="testAiResult" style="font-size:12px; border-radius:8px; padding:8px 12px; display:none; line-height:1.4;"></div>
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="pAge">年龄*</label>
+              <div class="stepper-container">
+                <button type="button" class="stepper-btn" onclick="adjustStepper('pAge', -1)">
+                  <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19,13H5V11H19V13Z"/></svg>
+                </button>
+                <input type="number" id="pAge" required min="12" max="100" placeholder="岁">
+                <button type="button" class="stepper-btn" onclick="adjustStepper('pAge', 1)">
+                  <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="pGender">性别*</label>
+              <select id="pGender" required>
+                <option value="female">女士</option>
+                <option value="male">男士</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="pActivity">日常身体活跃度*</label>
+            <select id="pActivity" required>
+              <option value="sedentary">久坐不动 / 极少运动 (BMR x 1.2)</option>
+              <option value="lightly_active">轻度活跃 (每周1-3次轻量运动, BMR x 1.375)</option>
+              <option value="moderately_active">中度活跃 (每周3-5次中强度运动, BMR x 1.55)</option>
+              <option value="very_active">重度活跃 (每周6-7次高强度运动, BMR x 1.725)</option>
+            </select>
+          </div>
+
+          
+          <div style="display:flex; gap:12px; margin-top:10px;">
+            <button type="button" class="btn btn-secondary" style="flex:1" onclick="closeModal('profileModal')">取消</button>
+            <button type="submit" class="btn btn-primary" style="flex:1">生成计划</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Test Connection Modal -->
+  <div class="modal-overlay" id="testAiModal" style="z-index: 250;">
+    <div class="modal" style="max-width: 440px;">
+      <div class="modal-header">
+        <h2 style="display:flex; align-items:center; gap:8px;">🛠️ AI 连接测试</h2>
+        <button class="close-btn" onclick="closeModal('testAiModal')">
+          <svg style="width:24px;height:24px" viewBox="0 0 24 24"><path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/></svg>
+        </button>
+      </div>
+      <div class="modal-body" style="gap: 16px;">
+        <div id="testAiDetails" style="font-size: 12px; color: var(--text-muted); background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 4px;">
+          <!-- Dynamically populated parameters being tested -->
+        </div>
+        
+        <!-- Checklist / progress steps -->
+        <div class="test-steps" style="display: flex; flex-direction: column; gap: 10px;">
+          <div class="test-step pending" id="step_params">
+            <span class="step-icon">⚪</span>
+            <span class="step-text" style="font-weight: 500;">第一步：验证 API 输入参数</span>
+          </div>
+          <div class="test-step pending" id="step_network">
+            <span class="step-icon">⚪</span>
+            <span class="step-text" style="font-weight: 500;">第二步：与 API 服务器握手</span>
+          </div>
+          <div class="test-step pending" id="step_parse">
+            <span class="step-icon">⚪</span>
+            <span class="step-text" style="font-weight: 500;">第三步：数据解析与格式验证</span>
+          </div>
+        </div>
+        
+        <!-- Result block -->
+        <div id="testAiModalResult" style="font-size: 13px; border-radius: 12px; padding: 14px; line-height: 1.5; display: none; margin-top: 4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);"></div>
+        
+        <div style="display:flex; gap:12px; margin-top:8px;">
+          <button type="button" class="btn btn-secondary" style="flex:1" onclick="closeModal('testAiModal')">关闭窗口</button>
+          <button type="button" class="btn btn-primary" id="retestAiBtn" style="flex:1; display: none;">重新测试</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/food_db.js"></script>
+  <script src="js/recipes.js"></script>
+  <script src="js/app.js"></script>
+  
+  <script>
+    // 绑定饮食记录里的单餐选择 Tab 事件
+    document.querySelectorAll('.meal-tab').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.meal-tab').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+      });
+    });
+
+    // PWA Service Worker 自动刷新逻辑
+    let refreshing = false;
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
+    }
+  </script>
+
+</body>
+</html>

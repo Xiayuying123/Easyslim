@@ -1,0 +1,17 @@
+{
+  "name": "weight-loss-tracking-tool",
+  "version": "1.0.0",
+  "description": "高颜值智能减肥追踪与水油焖菜食谱规划工具",
+  "main": "index.html",
+  "scripts": {
+    "dev": "npx -y http-server -p 8080 -c-1"
+  },
+  "keywords": [
+    "pwa",
+    "weight-loss",
+    "tracker",
+    "recipe"
+  ],
+  "author": "",
+  "license": "ISC"
+}

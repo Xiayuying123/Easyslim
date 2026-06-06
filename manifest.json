@@ -1,0 +1,18 @@
+{
+  "name": "轻盈减重助手",
+  "short_name": "轻盈减重",
+  "description": "高颜值、智能饮食解析与水油焖菜食谱规划的减重追踪工具",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0d0f12",
+  "theme_color": "#10b981",
+  "icons": [
+    {
+      "src": "logo.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any"
+    }
+  ]
+}
