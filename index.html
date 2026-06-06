@@ -324,6 +324,22 @@
           </div>
         </div>
         
+        <!-- Cuisine Quick-Switch Pills -->
+        <div class="cuisine-switch-container">
+          <button type="button" class="cuisine-pill active" data-cuisine="chinese" id="cuisinePillChinese">
+            <span>🇨🇳</span>
+            <span data-zh="中餐膳食" data-en="Chinese Cuisine">中餐膳食</span>
+          </button>
+          <button type="button" class="cuisine-pill" data-cuisine="american" id="cuisinePillAmerican">
+            <span>🇺🇸</span>
+            <span data-zh="美式轻卡" data-en="American Light">美式轻卡</span>
+          </button>
+          <button type="button" class="cuisine-pill" data-cuisine="japanese" id="cuisinePillJapanese">
+            <span>🇯🇵</span>
+            <span data-zh="和风日式" data-en="Japanese Light">和风日式</span>
+          </button>
+        </div>
+        
         <!-- Diet Pattern & Series Info Card -->
         <div class="recipe-info-card" id="recipeInfoCard" style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
           <!-- Will be dynamically generated in app.js -->
@@ -634,6 +650,18 @@
                 <option value="mediterranean">地中海膳食系列 (MedDiet)</option>
               </select>
             </div>
+          </div>
+
+          <div class="form-row-2" style="margin-top: 8px;">
+            <div class="form-group">
+              <label for="pCuisine">偏好菜系 (Preferred Cuisine)*</label>
+              <select id="pCuisine" required>
+                <option value="chinese" selected>中餐膳食 (Chinese)</option>
+                <option value="american">美式轻卡 (American)</option>
+                <option value="japanese">和风日式 (Japanese)</option>
+              </select>
+            </div>
+            <div class="form-group"></div>
           </div>
 
           <!-- 16+8 / 20+4 进食窗口设置 -->

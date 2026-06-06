@@ -107,6 +107,14 @@ function initAppEvents() {
     updateUI();
   });
 
+  // 菜系快捷切换
+  document.querySelectorAll('.cuisine-pill').forEach(pill => {
+    pill.addEventListener('click', (e) => {
+      const cuisine = e.currentTarget.getAttribute('data-cuisine');
+      selectCuisine(cuisine);
+    });
+  });
+
   // 日期微调
   document.getElementById('prevDateBtn').addEventListener('click', () => adjustDate(-1));
   document.getElementById('nextDateBtn').addEventListener('click', () => adjustDate(1));
@@ -181,7 +189,8 @@ function initAppEvents() {
         
         const targetKcal = getDailyTargetCalories(appState.currentDate);
         const series = (appState.profile && appState.profile.recipeSeries) || 'water_oil';
-        record.recipe = window.generateDailyRecipes(targetKcal, series, record.checkedMeals);
+        const cuisine = record.cuisine || (appState.profile && appState.profile.preferredCuisine) || 'chinese';
+        record.recipe = window.generateDailyRecipes(targetKcal, series, record.checkedMeals, getActualMealsCalories(record), cuisine);
         
         saveData();
         renderRecipePage();
@@ -358,7 +367,8 @@ function initAppEvents() {
     const record = getOrCreateTodayRecord();
     const targetKcal = getDailyTargetCalories(appState.currentDate);
     const series = appState.profile.recipeSeries || 'water_oil';
-    record.recipe = window.generateDailyRecipes(targetKcal, series, record.checkedMeals);
+    const cuisine = record.cuisine || appState.profile.preferredCuisine || 'chinese';
+    record.recipe = window.generateDailyRecipes(targetKcal, series, record.checkedMeals, getActualMealsCalories(record), cuisine);
     saveData();
     renderRecipePage();
     updateUI();
@@ -463,6 +473,7 @@ function getOrCreateTodayRecord() {
     const defaultChecked = getDefaultCheckedMeals();
     const targetKcal = getDailyTargetCalories(date);
     const series = (appState.profile && appState.profile.recipeSeries) || 'water_oil';
+    const cuisine = (appState.profile && appState.profile.preferredCuisine) || 'chinese';
     appState.records[date] = {
       morningWeight: null,
       bedtimeWeight: null,
@@ -473,7 +484,7 @@ function getOrCreateTodayRecord() {
         extra: []
       },
       checkedMeals: defaultChecked,
-      recipe: appState.profile ? window.generateDailyRecipes(targetKcal, series, defaultChecked) : {}
+      recipe: appState.profile ? window.generateDailyRecipes(targetKcal, series, defaultChecked, { breakfast: null, lunch: null, dinner: null, extra: 0 }, cuisine) : {}
     };
   }
   
@@ -489,10 +500,44 @@ function getOrCreateTodayRecord() {
     if (appState.profile) {
       const targetKcal = getDailyTargetCalories(date);
       const series = appState.profile.recipeSeries || 'water_oil';
-      record.recipe = window.generateDailyRecipes(targetKcal, series, record.checkedMeals);
+      const cuisine = record.cuisine || appState.profile.preferredCuisine || 'chinese';
+      record.recipe = window.generateDailyRecipes(targetKcal, series, record.checkedMeals, getActualMealsCalories(record), cuisine);
     }
   }
   return record;
+}
+
+// 选择临时菜系并重算食谱
+function selectCuisine(cuisine) {
+  if (!appState.profile) return;
+  
+  // 更新 UI 激活状态
+  document.querySelectorAll('.cuisine-pill').forEach(btn => {
+    if (btn.getAttribute('data-cuisine') === cuisine) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+  
+  const record = getOrCreateTodayRecord();
+  record.cuisine = cuisine; // 临时记录当天的菜系选择
+  
+  const targetKcal = getDailyTargetCalories(appState.currentDate);
+  const series = appState.profile.recipeSeries || 'water_oil';
+  
+  // 重新生成当天该菜系的食谱并代入实际卡路里差额
+  record.recipe = window.generateDailyRecipes(targetKcal, series, record.checkedMeals, getActualMealsCalories(record), cuisine);
+  
+  saveData();
+  renderRecipePage();
+  updateUI();
+  
+  showToast(
+    appState.language === 'en' 
+      ? `Switched to ${cuisine === 'chinese' ? 'Chinese' : cuisine === 'american' ? 'American' : 'Japanese'} recipe!` 
+      : `已切换至${cuisine === 'chinese' ? '中餐' : cuisine === 'american' ? '美式' : '日式'}推荐食谱！`
+  );
 }
 
 // 更新晨重、晚重
@@ -600,6 +645,7 @@ function saveProfile() {
   const dietPattern = document.getElementById('pDietPattern').value;
   const recipeSeries = document.getElementById('pRecipeSeries').value;
   const fastingStartHour = parseInt(document.getElementById('pFastingStartHour').value) || 12;
+  const preferredCuisine = document.getElementById('pCuisine').value || 'chinese';
   
   const fastingDays = [];
   if (dietPattern === '5_2') {
@@ -643,14 +689,16 @@ function saveProfile() {
     dietPattern,
     recipeSeries,
     fastingStartHour,
-    fastingDays
+    fastingDays,
+    preferredCuisine
   };
   
   // 重新对今天生成推荐食谱 (根据最新的模式和食谱系列)
   const record = getOrCreateTodayRecord();
   record.checkedMeals = getDefaultCheckedMeals();
+  record.cuisine = preferredCuisine; // 重置当天菜系为默认偏好
   const targetKcal = getDailyTargetCalories(appState.currentDate);
-  record.recipe = window.generateDailyRecipes(targetKcal, recipeSeries, record.checkedMeals);
+  record.recipe = window.generateDailyRecipes(targetKcal, recipeSeries, record.checkedMeals, getActualMealsCalories(record), preferredCuisine);
   
   saveData();
   closeModal('profileModal');
@@ -706,13 +754,27 @@ function getDefaultCheckedMeals() {
 
 // 根据菜品名字从食谱数据库搜索原始模板，避免精度丢失
 function getOriginalRecipeTemplate(name) {
-  if (!window.RECIPE_SERIES_DB) return null;
-  for (const series of Object.values(window.RECIPE_SERIES_DB)) {
-    for (const mealKey of ['breakfast', 'lunch', 'dinner']) {
-      const list = series[mealKey];
-      if (list) {
-        const match = list.find(r => r.name === name);
-        if (match) return JSON.parse(JSON.stringify(match));
+  if (!window.CUISINE_RECIPES_DB) {
+    if (!window.RECIPE_SERIES_DB) return null;
+    for (const series of Object.values(window.RECIPE_SERIES_DB)) {
+      for (const mealKey of ['breakfast', 'lunch', 'dinner']) {
+        const list = series[mealKey];
+        if (list) {
+          const match = list.find(r => r.name === name);
+          if (match) return JSON.parse(JSON.stringify(match));
+        }
+      }
+    }
+    return null;
+  }
+  for (const cuisineDb of Object.values(window.CUISINE_RECIPES_DB)) {
+    for (const series of Object.values(cuisineDb)) {
+      for (const mealKey of ['breakfast', 'lunch', 'dinner']) {
+        const list = series[mealKey];
+        if (list) {
+          const match = list.find(r => r.name === name);
+          if (match) return JSON.parse(JSON.stringify(match));
+        }
       }
     }
   }
@@ -1199,6 +1261,16 @@ function renderRecipePage() {
   adjustRecipeCaloriesBasedOnIntake(record);
   const recipe = record.recipe;
   
+  // 同步菜系胶囊激活状态
+  const activeCuisine = record.cuisine || (appState.profile && appState.profile.preferredCuisine) || 'chinese';
+  document.querySelectorAll('.cuisine-pill').forEach(btn => {
+    if (btn.getAttribute('data-cuisine') === activeCuisine) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
   // 更新复选框状态，防止外部状态未同步
   document.getElementById('recipeCheckBreakfast').checked = !!record.checkedMeals.breakfast;
   document.getElementById('recipeCheckLunch').checked = !!record.checkedMeals.lunch;
@@ -1994,10 +2066,12 @@ function openModal(modalId) {
     const recipeSeries = appState.profile.recipeSeries || 'water_oil';
     const fastingStartHour = appState.profile.fastingStartHour || 12;
     const fastingDays = appState.profile.fastingDays || [];
+    const preferredCuisine = appState.profile.preferredCuisine || 'chinese';
     
     document.getElementById('pDietPattern').value = dietPattern;
     document.getElementById('pRecipeSeries').value = recipeSeries;
     document.getElementById('pFastingStartHour').value = fastingStartHour;
+    document.getElementById('pCuisine').value = preferredCuisine;
     
     // 勾选轻断食日
     const checkboxes = document.querySelectorAll('input[name="fastingDays"]');
@@ -3565,6 +3639,20 @@ function applyLanguage() {
     pRecipeSeries.options[2].text = lang === 'en' ? 'Low-Carb Keto Series' : '低碳生酮系列 (Keto)';
     pRecipeSeries.options[3].text = lang === 'en' ? 'Mediterranean Diet Series' : '地中海膳食系列 (MedDiet)';
   }
+
+  const pCuisineLabel = document.querySelector('label[for="pCuisine"]');
+  if (pCuisineLabel) pCuisineLabel.innerText = lang === 'en' ? 'Preferred Cuisine*' : '偏好菜系 (Preferred Cuisine)*';
+  
+  const pCuisine = document.getElementById('pCuisine');
+  if (pCuisine) {
+    pCuisine.options[0].text = lang === 'en' ? 'Chinese Cuisine' : '中餐膳食 (Chinese)';
+    pCuisine.options[1].text = lang === 'en' ? 'American Light' : '美式轻卡 (American)';
+    pCuisine.options[2].text = lang === 'en' ? 'Japanese Light' : '和风日式 (Japanese)';
+  }
+
+  document.querySelectorAll('.cuisine-pill span[data-zh]').forEach(span => {
+    span.innerText = lang === 'en' ? span.getAttribute('data-en') : span.getAttribute('data-zh');
+  });
   
   const pFastingStartHourLabel = document.querySelector('label[for="pFastingStartHour"]');
   if (pFastingStartHourLabel) pFastingStartHourLabel.innerText = lang === 'en' ? 'Eating Window Start Hour*' : '进食窗口起始时间 (Eating Window Start)*';
