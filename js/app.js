@@ -704,6 +704,141 @@ function getDefaultCheckedMeals() {
   return { breakfast: true, lunch: true, dinner: true };
 }
 
+// 根据菜品名字从食谱数据库搜索原始模板，避免精度丢失
+function getOriginalRecipeTemplate(name) {
+  if (!window.RECIPE_SERIES_DB) return null;
+  for (const series of Object.values(window.RECIPE_SERIES_DB)) {
+    for (const mealKey of ['breakfast', 'lunch', 'dinner']) {
+      const list = series[mealKey];
+      if (list) {
+        const match = list.find(r => r.name === name);
+        if (match) return JSON.parse(JSON.stringify(match));
+      }
+    }
+  }
+  return null;
+}
+
+// 统计当天已打卡存入的各餐卡路里
+function getActualMealsCalories(record) {
+  const actualMeals = { breakfast: null, lunch: null, dinner: null, extra: 0 };
+  if (!record || !record.meals) return actualMeals;
+  
+  if (record.meals.breakfast && record.meals.breakfast.length > 0) {
+    actualMeals.breakfast = record.meals.breakfast.reduce((sum, item) => sum + item.calories, 0);
+  }
+  if (record.meals.lunch && record.meals.lunch.length > 0) {
+    actualMeals.lunch = record.meals.lunch.reduce((sum, item) => sum + item.calories, 0);
+  }
+  if (record.meals.dinner && record.meals.dinner.length > 0) {
+    actualMeals.dinner = record.meals.dinner.reduce((sum, item) => sum + item.calories, 0);
+  }
+  if (record.meals.extra && record.meals.extra.length > 0) {
+    actualMeals.extra = record.meals.extra.reduce((sum, item) => sum + item.calories, 0);
+  }
+  return actualMeals;
+}
+
+// 根据今日的实际摄入，动态调整剩余推荐餐食的分量和卡路里，保持菜品不变
+function adjustRecipeCaloriesBasedOnIntake(record) {
+  if (!appState.profile || !record || !record.recipe || Object.keys(record.recipe).length === 0) return;
+  
+  const dailyTargetCalories = getDailyTargetCalories(appState.currentDate);
+  const actualMeals = getActualMealsCalories(record);
+  
+  // 识别已吃和未吃餐次
+  let eatenSum = actualMeals.extra || 0;
+  let remainingRatioSum = 0;
+  const eatenMeals = {};
+  const remainingMeals = {};
+  
+  const defaultRatios = { breakfast: 0.30, lunch: 0.40, dinner: 0.30 };
+  
+  let activeRatioSum = 0;
+  Object.keys(record.checkedMeals).forEach(meal => {
+    if (record.checkedMeals[meal]) {
+      activeRatioSum += defaultRatios[meal];
+      if (actualMeals[meal] !== null) {
+        eatenMeals[meal] = actualMeals[meal];
+        eatenSum += actualMeals[meal];
+      } else {
+        remainingMeals[meal] = true;
+        remainingRatioSum += defaultRatios[meal];
+      }
+    }
+  });
+  
+  const activeSum = activeRatioSum || 1.0;
+  
+  // 查找原食谱菜品原始数据并重新缩放
+  const remainingCount = Object.keys(remainingMeals).length;
+  let remainingBudget = dailyTargetCalories - eatenSum;
+  const minFloor = 150; // 每餐低卡安全底线
+  
+  if (remainingCount > 0 && remainingBudget < minFloor * remainingCount) {
+    remainingBudget = minFloor * remainingCount;
+  }
+  
+  const scaleRecipeItems = (recipe, targetKcal) => {
+    if (!recipe) return null;
+    const originalTemplate = getOriginalRecipeTemplate(recipe.name);
+    if (!originalTemplate) return recipe; // 降级返回
+    
+    const originalCalories = originalTemplate.totalCalories;
+    const safeTargetKcal = Math.max(100, targetKcal);
+    const factor = safeTargetKcal / originalCalories;
+    
+    let currentSum = 0;
+    recipe.items = originalTemplate.items.map(item => {
+      const scaledWeight = Math.round(item.weight * factor);
+      const scaledCalories = Math.round(item.calories * factor);
+      currentSum += scaledCalories;
+      return {
+        name: item.name,
+        weight: scaledWeight,
+        calories: scaledCalories
+      };
+    });
+    recipe.totalCalories = currentSum;
+    return recipe;
+  };
+  
+  ['breakfast', 'lunch', 'dinner'].forEach(mealKey => {
+    const recipeMeal = record.recipe[mealKey];
+    if (recipeMeal) {
+      if (remainingMeals[mealKey]) {
+        // 属于剩余未吃餐次，根据剩余预算动态计算
+        const targetKcal = remainingBudget * (defaultRatios[mealKey] / remainingRatioSum);
+        record.recipe[mealKey] = scaleRecipeItems(recipeMeal, targetKcal);
+        if (record.recipe[mealKey]) {
+          record.recipe[mealKey].isEaten = false;
+          record.recipe[mealKey].originalTarget = Math.round(dailyTargetCalories * (defaultRatios[mealKey] / activeSum));
+        }
+      } else {
+        // 属于已吃餐次，恢复原始比例显示作为参考，并标记为已吃
+        const targetKcal = dailyTargetCalories * (defaultRatios[mealKey] / activeSum);
+        record.recipe[mealKey] = scaleRecipeItems(recipeMeal, targetKcal);
+        if (record.recipe[mealKey]) {
+          record.recipe[mealKey].isEaten = true;
+          record.recipe[mealKey].actualCalories = eatenMeals[mealKey];
+          record.recipe[mealKey].originalTarget = Math.round(targetKcal);
+        }
+      }
+    }
+  });
+  
+  // 重新计算已调整的总大卡
+  let totalCal = 0;
+  ['breakfast', 'lunch', 'dinner'].forEach(mealKey => {
+    const meal = record.recipe[mealKey];
+    if (meal) {
+      totalCal += meal.isEaten ? meal.actualCalories : meal.totalCalories;
+    }
+  });
+  record.recipe.totalCalories = totalCal;
+  record.recipe.adjustedDueToIntake = Object.keys(eatenMeals).length > 0 || (actualMeals.extra > 0);
+}
+
 // 核心 UI 更新逻辑
 function updateUI() {
   const dateStr = appState.currentDate;
@@ -780,6 +915,7 @@ function updateUI() {
   renderSmartRecommendations(remaining);
   
   // 5. 渲染今日食谱极简卡片
+  adjustRecipeCaloriesBasedOnIntake(record);
   renderDashboardRecipeQuickView(record.recipe);
 }
 
@@ -791,20 +927,47 @@ function renderDashboardRecipeQuickView(recipe) {
     return;
   }
   
+  const getMealQuickViewHtml = (key, icon, label) => {
+    const meal = recipe[key];
+    if (!meal) {
+      return `
+        <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--text-muted);">
+          <span>${icon} ${label}：${appState.language === 'en' ? 'Skipped' : '已跳过'}</span>
+          <span style="font-weight:600">--</span>
+        </div>
+      `;
+    }
+    
+    if (meal.isEaten) {
+      const diff = meal.actualCalories - meal.originalTarget;
+      const sign = diff > 0 ? '+' : '';
+      const color = diff > 30 ? 'var(--warning)' : 'var(--text-muted)';
+      const diffText = diff === 0 ? '' : ` (${sign}${diff} kcal)`;
+      return `
+        <div style="display:flex; justify-content:space-between; font-size:13px;">
+          <span>${icon} ${label}：<span style="color:var(--primary); font-weight:600;">✓</span> ${t(meal.name)} (${appState.language === 'en' ? 'Eaten' : '已吃'})</span>
+          <span style="color:var(--primary); font-weight:600">${meal.actualCalories} kcal <span style="font-size:11px; font-weight:normal; color:${color};">${diffText}</span></span>
+        </div>
+      `;
+    }
+    
+    return `
+      <div style="display:flex; justify-content:space-between; font-size:13px;">
+        <span>${icon} ${label}：${t(meal.name)}</span>
+        <span style="color:var(--accent-blue); font-weight:600">${meal.totalCalories} kcal</span>
+      </div>
+    `;
+  };
+  
+  const labelBreakfast = appState.language === 'en' ? 'Breakfast' : '早餐';
+  const labelLunch = appState.language === 'en' ? 'Lunch' : '午餐';
+  const labelDinner = appState.language === 'en' ? 'Dinner' : '晚餐';
+  
   container.innerHTML = `
     <div style="display:flex; flex-direction:column; gap:8px;">
-      <div style="display:flex; justify-content:space-between; font-size:13px;">
-        <span>🌅 早餐：${recipe.breakfast.name}</span>
-        <span style="color:var(--primary); font-weight:600">${recipe.breakfast.totalCalories} kcal</span>
-      </div>
-      <div style="display:flex; justify-content:space-between; font-size:13px;">
-        <span>☀️ 午餐：${recipe.lunch.name} (主推焖菜)</span>
-        <span style="color:var(--primary); font-weight:600">${recipe.lunch.totalCalories} kcal</span>
-      </div>
-      <div style="display:flex; justify-content:space-between; font-size:13px;">
-        <span>🌙 晚餐：${recipe.dinner.name} (主推焖菜)</span>
-        <span style="color:var(--primary); font-weight:600">${recipe.dinner.totalCalories} kcal</span>
-      </div>
+      ${getMealQuickViewHtml('breakfast', '🌅', labelBreakfast)}
+      ${getMealQuickViewHtml('lunch', '☀️', labelLunch)}
+      ${getMealQuickViewHtml('dinner', '🌙', labelDinner)}
     </div>
   `;
 }
@@ -1033,6 +1196,7 @@ function renderRecipePage() {
   }
   
   const record = getOrCreateTodayRecord();
+  adjustRecipeCaloriesBasedOnIntake(record);
   const recipe = record.recipe;
   
   // 更新复选框状态，防止外部状态未同步
@@ -1256,20 +1420,68 @@ function renderRecipePage() {
     });
     
     const card = document.createElement('div');
-    card.className = 'card recipe-card';
-    card.innerHTML = `
-      <div class="recipe-header">
-        <span class="recipe-meal-name">${mealsTitle[key]}</span>
-        <span class="recipe-calories">共 ${meal.totalCalories} kcal</span>
-      </div>
-      <ul class="recipe-items-list">
-        ${ingredientsHtml}
-      </ul>
-      <div class="recipe-steps">
-        <strong>💡 ${appState.language === 'en' ? 'Instructions:' : '制作指南：'}</strong><br>
-        ${t(meal.steps)}
-      </div>
-    `;
+    
+    if (meal.isEaten) {
+      card.className = 'card recipe-card eaten';
+      card.style.borderColor = 'var(--primary)';
+      card.style.background = 'rgba(16, 185, 129, 0.03)';
+      
+      const diff = meal.actualCalories - meal.originalTarget;
+      const sign = diff > 0 ? '+' : '';
+      const statusStyle = diff > 30 ? 'color:var(--warning);' : (diff < -30 ? 'color:var(--accent-blue);' : 'color:var(--primary);');
+      let comparisonHtml = '';
+      if (appState.language === 'en') {
+        const diffText = diff === 0 ? 'perfectly met target' : `${Math.abs(diff)} kcal ${diff > 0 ? 'over' : 'under'} target`;
+        comparisonHtml = `Logged: <strong>${meal.actualCalories} kcal</strong> (Recommended: ${meal.originalTarget} kcal)<br>
+          Status: <span style="${statusStyle} font-weight:600;">${diffText}</span>`;
+      } else {
+        const diffText = diff === 0 ? '与目标完全契合' : `比推荐目标${diff > 0 ? '超标' : '偏少'} ${Math.abs(diff)} kcal`;
+        comparisonHtml = `实际已吃：<strong>${meal.actualCalories} kcal</strong> (原推荐：${meal.originalTarget} kcal)<br>
+          状态评估：<span style="${statusStyle} font-weight:600;">${diffText}</span>`;
+      }
+      
+      card.innerHTML = `
+        <div class="recipe-header" style="border-bottom-color: rgba(16, 185, 129, 0.15); margin-bottom: 8px;">
+          <span class="recipe-meal-name" style="color:var(--primary);">${mealsTitle[key]}</span>
+          <span class="recipe-calories" style="color:var(--primary);">✓ ${appState.language === 'en' ? 'Eaten' : '已打卡食用'}</span>
+        </div>
+        <div style="font-size:12px; color:var(--text-muted); line-height:1.5; margin-bottom:12px; padding:8px 12px; background:rgba(255,255,255,0.02); border-radius:10px;">
+          ${comparisonHtml}
+        </div>
+        <ul class="recipe-items-list" style="opacity: 0.6;">
+          ${ingredientsHtml}
+        </ul>
+        <div class="recipe-steps" style="opacity: 0.6; margin-top: 8px;">
+          <strong>💡 ${appState.language === 'en' ? 'Instructions:' : '制作指南：'}</strong><br>
+          ${t(meal.steps)}
+        </div>
+      `;
+    } else {
+      card.className = 'card recipe-card';
+      let budgetLabelHtml = '';
+      if (recipe.adjustedDueToIntake && meal.originalTarget) {
+        const diff = meal.totalCalories - meal.originalTarget;
+        const sign = diff > 0 ? '+' : '';
+        const color = diff > 0 ? 'var(--primary)' : 'var(--danger)';
+        const text = appState.language === 'en' ? `Adjusted: ${sign}${diff} kcal` : `动态调整: ${sign}${diff} kcal`;
+        budgetLabelHtml = `<div style="font-size:11px; color:${color}; text-align:right; margin-top:-8px; margin-bottom:8px; font-weight:600;">📊 ${text}</div>`;
+      }
+      
+      card.innerHTML = `
+        <div class="recipe-header">
+          <span class="recipe-meal-name">${mealsTitle[key]}</span>
+          <span class="recipe-calories">共 ${meal.totalCalories} kcal</span>
+        </div>
+        ${budgetLabelHtml}
+        <ul class="recipe-items-list">
+          ${ingredientsHtml}
+        </ul>
+        <div class="recipe-steps">
+          <strong>💡 ${appState.language === 'en' ? 'Instructions:' : '制作指南：'}</strong><br>
+          ${t(meal.steps)}
+        </div>
+      `;
+    }
     container.appendChild(card);
   });
   

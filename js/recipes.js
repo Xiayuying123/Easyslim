@@ -339,26 +339,53 @@ function calculateTargetCalories(currentWeight, targetWeight, durationMonths, bm
  * @param {object} checkedMeals - { breakfast: true, lunch: true, dinner: true }
  * @returns {object} 包含三餐调整后的推荐食谱
  */
-function generateDailyRecipes(dailyTargetCalories, series = 'water_oil', checkedMeals = { breakfast: true, lunch: true, dinner: true }) {
+/**
+ * 根据每日热量目标，动态调整推荐食谱中食材的克重，使其卡路里总和与目标契合
+ * 同时考虑已吃食物的热量赤字或超标，动态调整剩下餐食的推荐热量
+ * @param {number} dailyTargetCalories - 每日目标卡路里
+ * @param {string} series - 食谱系列 ('water_oil' | 'salad' | 'keto' | 'mediterranean')
+ * @param {object} checkedMeals - { breakfast: true, lunch: true, dinner: true }
+ * @param {object} actualMeals - { breakfast: null, lunch: null, dinner: null, extra: 0 }
+ * @returns {object} 包含三餐调整后的推荐食谱
+ */
+function generateDailyRecipes(dailyTargetCalories, series = 'water_oil', checkedMeals = { breakfast: true, lunch: true, dinner: true }, actualMeals = { breakfast: null, lunch: null, dinner: null, extra: 0 }) {
   const db = RECIPE_SERIES_DB[series] || RECIPE_SERIES_DB.water_oil;
   
   // 推荐三餐默认比例：早餐 30%，午餐 40%，晚餐 30%
   const defaultRatios = { breakfast: 0.30, lunch: 0.40, dinner: 0.30 };
-  let ratioSum = 0;
   
+  let activeRatioSum = 0;
   Object.keys(checkedMeals).forEach(meal => {
     if (checkedMeals[meal]) {
-      ratioSum += defaultRatios[meal];
+      activeRatioSum += defaultRatios[meal];
     }
   });
   
-  // 如果没有任何餐被勾选，默认勾选全部以防崩溃
+  // 如果没有任何餐被勾选，默认勾选全部
   let activeMeals = { ...checkedMeals };
-  let activeSum = ratioSum;
-  if (ratioSum === 0) {
+  let activeSum = activeRatioSum;
+  if (activeRatioSum === 0) {
     activeMeals = { breakfast: true, lunch: true, dinner: true };
     activeSum = 1.0;
   }
+  
+  // 识别已吃和未吃的餐次
+  let eatenSum = actualMeals.extra || 0;
+  let remainingRatioSum = 0;
+  const eatenMeals = {};
+  const remainingMeals = {};
+  
+  Object.keys(activeMeals).forEach(meal => {
+    if (activeMeals[meal]) {
+      if (actualMeals[meal] !== null) {
+        eatenMeals[meal] = actualMeals[meal];
+        eatenSum += actualMeals[meal];
+      } else {
+        remainingMeals[meal] = true;
+        remainingRatioSum += defaultRatios[meal];
+      }
+    }
+  });
   
   const selectRandom = (arr) => {
     if (!arr || arr.length === 0) return null;
@@ -366,13 +393,15 @@ function generateDailyRecipes(dailyTargetCalories, series = 'water_oil', checked
   };
   
   const result = {
-    totalCalories: 0
+    totalCalories: 0,
+    adjustedDueToIntake: Object.keys(eatenMeals).length > 0 || (actualMeals.extra > 0)
   };
   
   const scaleRecipe = (recipe, targetKcal) => {
     if (!recipe) return null;
     const originalCalories = recipe.totalCalories;
-    const factor = targetKcal / originalCalories;
+    const safeTargetKcal = Math.max(100, targetKcal); // 保证每餐热量不低于100大卡安全底线
+    const factor = safeTargetKcal / originalCalories;
     
     let currentSum = 0;
     recipe.items.forEach(item => {
@@ -385,14 +414,39 @@ function generateDailyRecipes(dailyTargetCalories, series = 'water_oil', checked
     return recipe;
   };
   
+  // 计算剩余的可分配卡路里
+  const remainingCount = Object.keys(remainingMeals).length;
+  let remainingBudget = dailyTargetCalories - eatenSum;
+  const minFloor = 150; // 每餐低卡安全地板 (防止扣减过度导致食谱无食物)
+  
+  if (remainingCount > 0 && remainingBudget < minFloor * remainingCount) {
+    remainingBudget = minFloor * remainingCount;
+  }
+  
   ['breakfast', 'lunch', 'dinner'].forEach(mealKey => {
     if (activeMeals[mealKey]) {
-      const targetKcal = dailyTargetCalories * (defaultRatios[mealKey] / activeSum);
       const list = db[mealKey] || RECIPE_SERIES_DB.water_oil[mealKey];
       const template = JSON.parse(JSON.stringify(selectRandom(list)));
-      result[mealKey] = scaleRecipe(template, targetKcal);
-      if (result[mealKey]) {
-        result.totalCalories += result[mealKey].totalCalories;
+      
+      if (remainingMeals[mealKey]) {
+        // 属于剩余未吃餐次，根据剩余预算动态计算
+        const targetKcal = remainingBudget * (defaultRatios[mealKey] / remainingRatioSum);
+        result[mealKey] = scaleRecipe(template, targetKcal);
+        if (result[mealKey]) {
+          result[mealKey].isEaten = false;
+          result[mealKey].originalTarget = Math.round(dailyTargetCalories * (defaultRatios[mealKey] / activeSum));
+          result.totalCalories += result[mealKey].totalCalories;
+        }
+      } else {
+        // 属于已吃餐次，按原本推荐的比例生成备份模板，便于比较
+        const targetKcal = dailyTargetCalories * (defaultRatios[mealKey] / activeSum);
+        result[mealKey] = scaleRecipe(template, targetKcal);
+        if (result[mealKey]) {
+          result[mealKey].isEaten = true;
+          result[mealKey].actualCalories = eatenMeals[mealKey];
+          result[mealKey].originalTarget = Math.round(targetKcal);
+          result.totalCalories += eatenMeals[mealKey]; // 总额累加实际摄入
+        }
       }
     } else {
       result[mealKey] = null; // 标识该餐被跳过（如断食中）
