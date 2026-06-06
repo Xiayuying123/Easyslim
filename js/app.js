@@ -6,6 +6,7 @@ let appState = {
   profile: null, // 身高, 初始体重, 目标体重, 目标时间, 年龄, 性别, 活跃度, BMR, TDEE, 每日目标热量
   currentDate: getTodayString(),
   records: {}, // { '2026-06-05': { morningWeight, bedtimeWeight, meals: { breakfast:[], lunch:[], dinner:[], extra:[] }, recipe: {} } }
+  language: localStorage.getItem('easyslim_lang') || 'zh'
 };
 
 // 缓存临时的饮食解析结果
@@ -16,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadData();
   registerServiceWorker();
   initAppEvents();
+  applyLanguage(); // 应用多语言翻译
   checkAuthStatus(); // 校验用户登录状态
   routeTab('dashboard'); // 默认展示控制台
   if (appState.currentUser) {
@@ -36,6 +38,10 @@ function getTodayString() {
 // 格式化日期显示
 function formatDisplayDate(dateStr) {
   const [y, m, d] = dateStr.split('-');
+  if (appState.language === 'en') {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${months[parseInt(m) - 1]} ${parseInt(d)}`;
+  }
   return `${m}月${d}日`;
 }
 
@@ -91,6 +97,14 @@ function initAppEvents() {
       const tabId = item.getAttribute('data-tab-target');
       routeTab(tabId);
     });
+  });
+
+  // 语言切换
+  document.getElementById('langToggleBtn').addEventListener('click', () => {
+    appState.language = appState.language === 'en' ? 'zh' : 'en';
+    localStorage.setItem('easyslim_lang', appState.language);
+    applyLanguage();
+    updateUI();
   });
 
   // 日期微调
@@ -624,8 +638,7 @@ function updateUI() {
   const offset = 439.8 - (percent / 100) * 439.8;
   circleVal.style.strokeDashoffset = offset;
   document.getElementById('caloriesCircleNumber').innerText = eaten;
-  
-  // 如果是超标，圆环颜色可以变黄/红
+    // 如果是超标，圆环颜色可以变黄/红
   if (remaining < 0) {
     circleVal.style.stroke = 'var(--danger)';
     document.getElementById('caloriesRemainingVal').style.color = 'var(--danger)';
@@ -675,11 +688,16 @@ function generateStrategyReport(eaten, target, record) {
   const container = document.getElementById('strategyList');
   container.innerHTML = '';
   
+  const isEn = appState.language === 'en';
+  
   if (!appState.profile) {
+    const defaultStrategy = isEn
+      ? 'Welcome to Easyslim! Please click "Set Target" in the sidebar to enter your height and weight, and we will customize your daily target calories and recipes.'
+      : '欢迎使用轻盈减重助手！请先点击右上角“设置目标”输入您的初始身高和体重，我们将自动为您定制每日热量差与食谱。';
     container.innerHTML = `<div class="strategy-item">
       <span class="strategy-bullet">💡</span>
       <div class="strategy-text">
-        <p>欢迎使用轻盈减重助手！请先点击右上角“设置目标”输入您的初始身高和体重，我们将自动为您定制每日热量差与食谱。</p>
+        <p>${defaultStrategy}</p>
       </div>
     </div>`;
     return;
@@ -701,34 +719,44 @@ function generateStrategyReport(eaten, target, record) {
       if (wtDiff < 0) {
         strategies.push({
           icon: '📉',
-          title: '体重呈良好下降趋势',
-          desc: `对比昨日清晨体重下降了 ${Math.abs(wtDiff)} kg！您的身体正处于健康燃脂状态，请保持昨天的作息与饮食节奏。`
+          title: isEn ? 'Weight shows a good downward trend' : '体重呈良好下降趋势',
+          desc: isEn 
+            ? `Down by ${Math.abs(wtDiff)} kg compared to yesterday morning! Your body is in a healthy fat-burning state, keep up the rhythm.`
+            : `对比昨日清晨体重下降了 ${Math.abs(wtDiff)} kg！您的身体正处于健康燃脂状态，请保持昨天的作息与饮食节奏。`
         });
       } else if (wtDiff > 0) {
         strategies.push({
           icon: '📈',
-          title: '体重略微上涨',
-          desc: `对比昨日清晨上涨 ${wtDiff} kg。这多半是由于昨日食物残渣或水分储留，不要焦虑，减脂是看长期趋势，建议今天注意控盐。`
+          title: isEn ? 'Weight slightly increased' : '体重略微上涨',
+          desc: isEn 
+            ? `Up by ${wtDiff} kg compared to yesterday morning. This is likely water retention or digestion residues. Focus on long-term trends and watch sodium today.`
+            : `对比昨日清晨上涨 ${wtDiff} kg。这多半是由于昨日食物残渣或水分储留，不要焦虑，减脂是看长期趋势，建议今天注意控盐。`
         });
       } else {
         strategies.push({
           icon: '⚖️',
-          title: '清晨体重持平',
-          desc: '体重与昨日持平。这表明目前处于代谢平衡期，请继续坚持，并配合充足饮水以加速新陈代谢。'
+          title: isEn ? 'Morning weight unchanged' : '清晨体重持平',
+          desc: isEn 
+            ? 'Weight is the same as yesterday. This indicates a metabolic balance phase. Keep going and drink enough water to boost metabolism.'
+            : '体重与昨日持平。这表明目前处于代谢平衡期，请继续坚持，并配合充足饮水以加速新陈代谢。'
         });
       }
     } else {
       strategies.push({
         icon: '⚖️',
-        title: '初始清晨体重已记录',
-        desc: '明日此时可看到与今日的体重差。注意：清晨排便后空腹测量的体重最接近真实值。'
+        title: isEn ? 'Initial morning weight recorded' : '初始清晨体重已记录',
+        desc: isEn 
+          ? 'Tomorrow you will see the difference. Note: Morning empty weight after restroom use is the most accurate.'
+          : '明日此时可看到与今日的体重差。注意：清晨排便后空腹测量的体重最接近真实值。'
       });
     }
   } else {
     strategies.push({
       icon: '⏰',
-      title: '记得补录清晨空腹体重',
-      desc: '获取准确清晨体重能帮助我们更敏锐地分析水分和皮下脂肪变化趋势。'
+      title: isEn ? 'Remember to log morning empty weight' : '记得补录清晨空腹体重',
+      desc: isEn 
+        ? 'Logging morning weight helps us analyze changes in water weight and body fat trends.'
+        : '获取准确清晨体重能帮助我们更敏锐地分析水分和皮下脂肪变化趋势。'
     });
   }
   
@@ -738,8 +766,10 @@ function generateStrategyReport(eaten, target, record) {
     if (delta > 1.2) {
       strategies.push({
         icon: '🍲',
-        title: '早晚温差偏大',
-        desc: `今日早晚体重差达 ${delta.toFixed(1)} kg（正常范围在 0.5 ~ 1.0 kg）。这可能说明晚餐摄入较重、水分滞留或盐分偏多，建议今晚睡前尽量不喝水，明天晚餐分量稍作扣减，主打轻油轻盐的水油焖菜。`
+        title: isEn ? 'Large morning/bedtime weight gap' : '早晚温差偏大',
+        desc: isEn 
+          ? `Morning/bedtime weight gap is ${delta.toFixed(1)} kg (healthy range: 0.5-1.0 kg). This suggests a heavy dinner or sodium retention. Try drinking less water before bed and eat lighter dinners tomorrow.`
+          : `今日早晚体重差达 ${delta.toFixed(1)} kg（正常范围在 0.5 ~ 1.0 kg）。这可能说明晚餐摄入较重、水分滞留或盐分偏多，建议今晚睡前尽量不喝水，明天晚餐分量稍作扣减，主打轻油轻盐的水油焖菜。`
       });
     } else if (delta < 0.4 && delta >= 0) {
       strategies.push({
@@ -1065,15 +1095,17 @@ function renderWeightChart() {
   
   // 构造数据圆点
   let dotsHtml = '';
+  const mornLegend = appState.language === 'en' ? 'Morning' : '晨重';
+  const bedLegend = appState.language === 'en' ? 'Bedtime' : '晚重';
   last7Days.forEach((dateStr, idx) => {
     const mornVal = morningData[idx];
     const bedVal = bedtimeData[idx];
     
     if (mornVal !== null) {
-      dotsHtml += `<circle class="chart-dot-morning" cx="${getX(idx)}" cy="${getY(mornVal)}" r="5"><title>${dateStr} 晨重: ${mornVal}kg</title></circle>`;
+      dotsHtml += `<circle class="chart-dot-morning" cx="${getX(idx)}" cy="${getY(mornVal)}" r="5"><title>${dateStr} ${mornLegend}: ${mornVal}kg</title></circle>`;
     }
     if (bedVal !== null) {
-      dotsHtml += `<circle class="chart-dot-bedtime" cx="${getX(idx)}" cy="${getY(bedVal)}" r="5"><title>${dateStr} 晚重: ${bedVal}kg</title></circle>`;
+      dotsHtml += `<circle class="chart-dot-bedtime" cx="${getX(idx)}" cy="${getY(bedVal)}" r="5"><title>${dateStr} ${bedLegend}: ${bedVal}kg</title></circle>`;
     }
   });
   
@@ -1097,7 +1129,7 @@ function renderWeightChart() {
       <!-- Dots -->
       ${dotsHtml}
     </svg>
-    ${!hasData ? `<div style="position:absolute; top:45%; left:55%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.8); padding:8px 16px; border-radius:8px; font-size:12px; color:var(--warning); pointer-events:none;">💡 暂无真实体重数据，当前展示模拟演示趋势。</div>` : ''}
+    ${!hasData ? `<div style="position:absolute; top:45%; left:55%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.8); padding:8px 16px; border-radius:8px; font-size:12px; color:var(--warning); pointer-events:none;">💡 ${appState.language === 'en' ? 'No real weight data yet. Showing sample trend.' : '暂无真实体重数据，当前展示模拟演示趋势。'}</div>` : ''}
   `;
   
   chartWrapper.innerHTML = svgContent;
@@ -1112,7 +1144,8 @@ function renderHistoryTable() {
   const sortedDates = Object.keys(appState.records).sort((a, b) => b.localeCompare(a));
   
   if (sortedDates.length === 0) {
-    container.innerHTML = `<div style="text-align:center; color:var(--text-muted); padding:20px; font-size:14px;">暂无历史打卡记录</div>`;
+    const fallbackText = appState.language === 'en' ? 'No history logs found' : '暂无历史打卡记录';
+    container.innerHTML = `<div style="text-align:center; color:var(--text-muted); padding:20px; font-size:14px;">${fallbackText}</div>`;
     return;
   }
   
@@ -1125,12 +1158,14 @@ function renderHistoryTable() {
       arr.forEach(f => eaten += f.calories);
     });
     
+    const calorieText = appState.language === 'en' ? `Calories Eaten: ${eaten} kcal` : `卡路里摄入: ${eaten} kcal`;
+    
     const row = document.createElement('div');
     row.className = 'log-item-row';
     row.innerHTML = `
       <div style="display:flex; flex-direction:column; gap:2px;">
         <span style="font-weight:600; font-size:14px;">${formatDisplayDate(dateStr)}</span>
-        <span style="font-size:12px; color:var(--text-muted)">卡路里摄入: ${eaten} kcal</span>
+        <span style="font-size:12px; color:var(--text-muted)">${calorieText}</span>
       </div>
       <div style="display:flex; gap:12px; font-size:14px;">
         <div>🌅 <span style="font-weight:600">${rec.morningWeight ? rec.morningWeight + 'kg' : '--'}</span></div>
@@ -1144,7 +1179,8 @@ function renderHistoryTable() {
 // 辅助函数：把餐食明细简化为字符串，方便在表格内呈现
 function summarizeMeal(foods) {
   if (!foods || foods.length === 0) return '';
-  return foods.map(f => f.name).join('、');
+  const separator = appState.language === 'en' ? ', ' : '、';
+  return foods.map(f => t(f.name)).join(separator);
 }
 
 // 渲染计划总览页面（里程碑 + Excel 表格）
@@ -1153,8 +1189,14 @@ function renderSheetPage() {
   const tableWrapper = document.getElementById('sheetTableWrapper');
   
   if (!appState.profile) {
-    milestoneGrid.innerHTML = `<p style="color:var(--text-muted); font-size:14px; padding:20px;">请先点击右上角“设置目标”，配置个人身高体重与减重计划周期。</p>`;
-    tableWrapper.innerHTML = `<p style="color:var(--text-muted); font-size:14px; text-align:center; padding:40px;">请先配置个人减重目标以展示您的月历数据表格。</p>`;
+    const emptyMilestoneMsg = appState.language === 'en' 
+      ? 'Please click "Set Target" in the sidebar to configure height, weight, and plans.' 
+      : '请先点击右上角“设置目标”，配置个人身高体重与减重计划周期。';
+    const emptyTableMsg = appState.language === 'en' 
+      ? 'Please configure your weight loss target to show your calendar sheet.' 
+      : '请先配置个人减重目标以展示您的月历数据表格。';
+    milestoneGrid.innerHTML = `<p style="color:var(--text-muted); font-size:14px; padding:20px;">${emptyMilestoneMsg}</p>`;
+    tableWrapper.innerHTML = `<p style="color:var(--text-muted); font-size:14px; text-align:center; padding:40px;">${emptyTableMsg}</p>`;
     return;
   }
   
@@ -1168,11 +1210,14 @@ function renderSheetPage() {
   const totalWeightToLose = initialWt - targetWt;
   const lossPerMonth = totalWeightToLose / duration;
   
+  const initialLabel = appState.language === 'en' ? 'Starting Stats' : '初始数据';
+  const startSuffix = appState.language === 'en' ? ' Start' : ' 起始';
+  
   let milestoneHtml = `
     <div class="sheet-stage-card starting">
-      <div style="font-size:12px; color:var(--text-muted);">初始数据</div>
+      <div style="font-size:12px; color:var(--text-muted);">${initialLabel}</div>
       <div style="font-size:18px; font-weight:700; color:var(--text-main); margin-top:4px;">${initialWt} kg</div>
-      <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">${formatDisplayDate(startDateStr)} 起始</div>
+      <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">${formatDisplayDate(startDateStr)}${startSuffix}</div>
     </div>
   `;
   
@@ -1201,13 +1246,18 @@ function renderSheetPage() {
     });
     
     const cardClass = isCompleted ? 'completed' : 'in-progress';
-    const statusText = isCompleted ? `🏆 已达成 (${formatDisplayDate(completedDate)})` : `🔥 进行中`;
+    const statusText = isCompleted 
+      ? (appState.language === 'en' ? `🏆 Achieved (${formatDisplayDate(completedDate)})` : `🏆 已达成 (${formatDisplayDate(completedDate)})`)
+      : (appState.language === 'en' ? `🔥 In Progress` : `🔥 进行中`);
+    
+    const stageLabel = appState.language === 'en' ? `Stage ${i} Target` : `第 ${i} 阶段目标`;
+    const deadlineSuffix = appState.language === 'en' ? ' Deadline' : ' 截止';
     
     milestoneHtml += `
       <div class="sheet-stage-card ${cardClass}">
-        <div style="font-size:12px; color:var(--text-muted);">第 ${i} 阶段目标</div>
+        <div style="font-size:12px; color:var(--text-muted);">${stageLabel}</div>
         <div style="font-size:18px; font-weight:700; margin-top:4px; color:${isCompleted ? 'var(--primary)' : 'var(--warning)'}">${stageWeight} kg</div>
-        <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">${formatDisplayDate(stageDateStr)} 截止</div>
+        <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">${formatDisplayDate(stageDateStr)}${deadlineSuffix}</div>
         <div style="font-size:11px; font-weight:600; margin-top:6px;">${statusText}</div>
       </div>
     `;
@@ -1232,10 +1282,19 @@ function renderSheetPage() {
     dateList.push(`${y}-${m}-${day}`);
   }
   
-  let tableHtml = `
-    <table class="sheet-table">
-      <thead>
-        <tr>
+  const headersHtml = appState.language === 'en' ? `
+          <th>Date</th>
+          <th>Bedtime Weight</th>
+          <th>Morning Weight</th>
+          <th>Breakfast</th>
+          <th>Lunch</th>
+          <th>Dinner</th>
+          <th>Exercise Details</th>
+          <th>Eating Out / Notes</th>
+          <th>Total Lost</th>
+          <th>Weekly Avg</th>
+          <th>Weekly Dec</th>
+  ` : `
           <th>日期</th>
           <th>睡前体重</th>
           <th>晨重空腹</th>
@@ -1247,6 +1306,13 @@ function renderSheetPage() {
           <th>累计已减</th>
           <th>周平均 (晨重)</th>
           <th>周减少比</th>
+  `;
+
+  let tableHtml = `
+    <table class="sheet-table">
+      <thead>
+        <tr>
+          ${headersHtml}
         </tr>
       </thead>
       <tbody>
@@ -1435,7 +1501,7 @@ function showToast(msg) {
     opacity: 0;
     transition: opacity 0.3s, transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
   `;
-  toast.innerText = msg;
+  toast.innerText = t(msg);
   document.body.appendChild(toast);
   
   // 触发动画
@@ -2143,4 +2209,724 @@ async function executeAiConnectionTest() {
     
     document.getElementById('retestAiBtn').style.display = 'block';
   }
+}
+
+// ==============================================
+// BILINGUAL LOCALIZATION (i18n) ENGINE
+// ==============================================
+
+// 食谱、食材与补餐建议翻译词表
+const recipeTranslations = {
+  // Breakfasts
+  '高纤燕麦蛋羹餐': 'High-Fiber Oatmeal Egg Custard',
+  '燕麦片': 'Oatmeal',
+  '鸡蛋 (水煮)': 'Boiled Egg',
+  '脱脂牛奶': 'Skim Milk',
+  '燕麦片加水微波炉加热2分钟，搭配水煮蛋和脱脂牛奶食用。': 'Microwave oatmeal with water for 2 minutes, serve with a boiled egg and skim milk.',
+  
+  '牛油果全麦吐司蛋': 'Avocado Whole Wheat Toast & Egg',
+  '全麦吐司': 'Whole Wheat Toast',
+  '鸡蛋 (无油煎)': 'Fried Egg (No Oil)',
+  '番茄': 'Tomato',
+  '混合坚果': 'Mixed Nuts',
+  '全麦面包烤热，放上煎蛋和番茄片，搭配适量坚果。': 'Toast whole wheat bread, place fried egg and tomato slices on top, serve with nuts.',
+  
+  '红薯温沙拉餐': 'Warm Sweet Potato Salad Meal',
+  '蒸红薯': 'Steamed Sweet Potato',
+  '无糖酸奶': 'Unsweetened Yogurt',
+  '小番茄': 'Cherry Tomatoes',
+  '红薯切块蒸熟，搭配水煮蛋与酸奶，点缀小番茄。': 'Steam diced sweet potato, serve with a boiled egg, unsweetened yogurt, and cherry tomatoes.',
+  
+  // Lunch
+  '水油焖西兰花鸡胸肉饭': 'Water-Oil Braised Broccoli & Chicken Rice',
+  '鸡胸肉': 'Chicken Breast',
+  '西兰花': 'Broccoli',
+  '胡萝卜': 'Carrot',
+  '橄榄油': 'Olive Oil',
+  '糙米饭': 'Brown Rice',
+  '【水油焖法】：平底锅放入50ml水、5ml橄榄油、鸡胸肉丁与西兰花、胡萝卜片。盖上锅盖，中火焖煮3-4分钟至熟，开盖用适量蚝油、蒜蓉、少许盐调味收汁。配糙米饭食用。': '【Water-Oil Braising Method】: Put 50ml water, 5ml olive oil, diced chicken breast, broccoli, and sliced carrots in a flat pan. Cover with lid, steam on medium heat for 3-4 minutes until cooked, then open lid, season with oyster sauce, minced garlic, and a pinch of salt to reduce sauce. Serve with brown rice.',
+  
+  '水油焖牛肉片鲜菇豆腐饭': 'Water-Oil Braised Beef, Mushrooms & Tofu Rice',
+  '瘦牛肉片': 'Lean Beef Slices',
+  '豆腐': 'Tofu',
+  '菌菇 (香菇/金针菇)': 'Mushrooms (Shiitake/Enoki)',
+  '菌菇 (杏鲍菇)': 'Mushrooms (King Oyster)',
+  '菌菇': 'Mushrooms',
+  '油麦菜/生菜': 'Lettuce/Greens',
+  '娃娃菜': 'Baby Cabbage',
+  '紫薯': 'Steamed Purple Sweet Potato',
+  '【水油焖法】：锅中加入少量水和5ml油，铺上菌菇和豆腐。烧开后下牛肉片 and 娃娃菜，盖盖焖煮3分钟。牛肉变色熟透后，加少许生抽、黑胡椒调味。搭配蒸紫薯。': '【Water-Oil Braising Method】: Put a little water and 5ml oil in a pot, lay out mushrooms and tofu. Bring to boil, add beef slices and baby cabbage, cover and steam for 3 minutes. Season with light soy sauce and black pepper. Serve with sweet purple potato.',
+  
+  '水油焖鲜虾菌菇魔芋丝饭': 'Water-Oil Braised Shrimp, Mushrooms & Shirataki Rice',
+  '基围虾仁': 'Shrimp',
+  '生菜': 'Lettuce',
+  '白米饭': 'White Rice',
+  '鸡蛋': 'Egg',
+  '【水油焖法】：锅内倒少许水和5ml油，先焖杏鲍菇和虾仁2分钟，再加入生菜盖盖焖30秒。起锅前打入蛋液或直接用蒜泥生抽调味。配白米饭。': '【Water-Oil Braising Method】: Add a little water and 5ml oil to the pot, cover and steam king oyster mushrooms and shrimp for 2 minutes, add lettuce and cover for 30 seconds. Stir in beaten eggs or season with garlic soy sauce. Serve with white rice.',
+  
+  // Dinner
+  '水油焖虾仁娃娃菜轻食': 'Water-Oil Braised Shrimp & Cabbage Meal',
+  '木耳': 'Black Fungus',
+  '玉米': 'Corn',
+  '【水油焖法】：锅中放入少许水、3ml油，铺上娃娃菜和黑木耳，上面码放虾仁。盖盖焖煮3分钟，调入少许盐和白胡椒粉。搭配水煮玉米半根。': '【Water-Oil Braising Method】: Add a little water and 3ml oil to the pot, lay cabbage and black fungus, place shrimp on top. Cover and steam for 3 minutes, season with salt and white pepper. Serve with half boiled corn.',
+  
+  '水油焖豆腐龙利鱼温沙拉': 'Water-Oil Braised Tofu & Fish Warm Salad',
+  '龙利鱼/鳕鱼': 'Basa/Cod Fish',
+  '【水油焖法】：鳕鱼块与豆腐下锅，倒入30ml水和3ml油，盖盖焖煮3分钟，再加入西兰花焖1分钟。用蒸鱼豉油调味。搭配蒸红薯。': '【Water-Oil Braising Method】: Put cod chunks and tofu in the pot, add 30ml water and 3ml oil, cover and steam for 3 minutes, add broccoli and steam for another minute. Season with seasoned soy sauce. Serve with steamed sweet potato.',
+  
+  '水油焖时蔬牛肉丝轻食': 'Water-Oil Braised Beef Strips & Vegetables Meal',
+  '瘦牛肉丝': 'Lean Beef Strips',
+  '香菇': 'Shiitake Mushroom',
+  '【水油焖法】：牛肉丝先用生抽淀粉抓匀。锅内下50ml水、4ml油，先焖香菇和牛肉丝2分钟，下绿叶菜焖30秒，起锅撒黑胡椒。搭配糙米饭。': '【Water-Oil Braising Method】: Marinate beef strips with soy sauce and cornstarch. Add 50ml water and 4ml oil to pot, cover and steam shiitake and beef for 2 minutes, add greens and steam for 30 seconds, season with black pepper. Serve with brown rice.',
+
+  // Snacks & Categories
+  '💪 纯享优质高蛋白方案': '💪 Pure Quality High Protein Option',
+  '🥜 坚果酸奶元气方案': '🥜 Nuts & Yogurt Energy Option',
+  '🥛 饱腹高钙补给方案': '🥛 Satiety & High Calcium Option',
+  '🍎 清爽低卡多维方案': '🍎 Fresh Low-Cal Multivitamin Option',
+  '即食鸡胸肉': 'Ready-to-eat Chicken Breast',
+  '无糖豆浆': 'Sugar-free Soy Milk',
+  '香蕉': 'Banana',
+  '黄瓜': 'Cucumber',
+  '圣女果/小番茄': 'Cherry Tomatoes',
+  '优质脂肪与膳食纤维，抗饿神器': 'Healthy fats and dietary fiber, great for hunger relief',
+  '补充优质蛋白质与钙质，促进肠道蠕动': 'Supplies high-quality protein and calcium, improves digestion',
+  '纯粹优质蛋白质，饱腹感强': 'Pure high-quality protein with strong satiety',
+  '富含果胶与维生素，低热量饱腹': 'Rich in pectin and vitamins, low calorie filling',
+  '植物蛋白，暖胃低卡': 'Plant protein, warm and low calorie',
+  '快速补充碳水与钾元素，适合运动前后': 'Quick carb and potassium boost, great for workouts',
+  '高蛋白低脂肪，迅速补充纯蛋白': 'High protein low fat, replenishes pure protein fast',
+  '极低热量，补水利尿': 'Extremely low calorie, hydrating and diuretic',
+  '富含番茄红素，酸甜开胃低热量': 'Rich in lycopene, sweet and sour low calorie snack',
+  
+  // Toasts & Alerts
+  '饮食记录已成功存入！': 'Diet record saved successfully!',
+  '食谱已刷新！': 'Recipe refreshed!',
+  '保存成功': 'Saved successfully!',
+  '切换成功': 'Date switched successfully!',
+  '数据文件已成功导出！': 'Data exported successfully!',
+  '导出失败！': 'Export failed!',
+  '导入失败：无效的数据结构': 'Import failed: invalid data structure',
+  '读取文件失败，请确保是正确的 JSON 文件': 'Import failed: please ensure it is a valid JSON file',
+  '账号已安全退出': 'Logged out successfully!'
+};
+
+// 翻译对照字典 (Bilingual UI Mappings)
+const UI_TRANSLATIONS = {
+  zh: {
+    logoText: '轻盈减重',
+    navDashboard: '今日概览',
+    navEat: '饮食记录',
+    navRecipe: '健康食谱',
+    navSheet: '计划总览',
+    navAnalytics: '数据分析',
+    btnProfile: '设置减重目标',
+    btnLogout: '🚪 退出当前账号',
+    headerTitlePrefix: '智能卡路里 & 水油焖菜食谱定制 | 👤 账号: ',
+    lblSwitchDate: '切换日期',
+    btnMobileTarget: '目标设置',
+    
+    // Dashboard
+    dashRingTitle: '今日能量控制环',
+    dashRingEaten: '已摄入 kcal',
+    dashStatTarget: '🎯 减重预算热量',
+    dashStatEaten: '🥑 已经摄入热量',
+    dashStatRemaining: '⚖️ 剩余可摄入额度',
+    dashWeightTitle: '今日体重波动',
+    dashWeightMorning: '🌅 清晨空腹体重',
+    dashWeightBedtime: '🌙 睡前放松体重',
+    dashWeightMorningPh: '输入体重',
+    dashWeightBedtimePh: '输入体重',
+    dashWeightDiffPrefix: '早晚体重差: ',
+    dashExerciseLabel: '🏃‍♂️ 今日运动与时长',
+    dashExercisePh: '如：跑步30分钟、跳绳1000下',
+    dashNotesLabel: '📝 餐饮/外食与其它备注',
+    dashNotesPh: '如：晚上聚餐、爆卡、无糖可乐等',
+    dashRecipeTitle: '今日水油焖菜食谱',
+    dashRecipeView: '查看完整',
+    dashDistributionTitle: '每餐已摄入热量分布',
+    dashDistributionGo: '去记录',
+    dashCalBreakfast: '🌅 早餐已吃',
+    dashCalLunch: '☀️ 午餐已吃',
+    dashCalDinner: '🌙 晚餐已吃',
+    dashCalExtra: '🍎 额外加餐已吃',
+    dashStrategyTitle: '📝 今日健康评估与后续策略',
+    
+    // Diet Logger
+    eatTitle: '饮食打卡 & 智能计算',
+    eatTabBreakfast: '早餐',
+    eatTabLunch: '午餐',
+    eatTabDinner: '晚餐',
+    eatTabExtra: '三餐之外',
+    eatRawLabel: '告诉我你吃了什么：',
+    eatRawPh: '例如：早餐吃了2个水煮蛋，1片全麦吐司和一盒纯牛奶。\n系统将自动为您提取食材，估算克重并计算总大卡。',
+    eatBtnParse: '智能卡路里估算',
+    eatBtnCustom: '+ 自定义食物',
+    eatFoodDetailTitle: '📋 本餐食物明细',
+    eatFoodDetailSub: '(克重可直接修改微调)',
+    eatParsedPlaceholder: '输入上方吃了什么，并点击“智能卡路里估算”',
+    eatBtnSave: '确认记录至今日记录',
+    eatSnackTitle: '💡 智能补餐推荐',
+    eatSnackDesc: '如果您的今日摄入未满足根据计划设定的代谢安全上限，系统已为您量身计算并推荐以下补餐组合：',
+    
+    // Healthy Recipes
+    recipeMainTitle: '今日推荐水油焖菜食谱',
+    recipeGoalPrefix: '每日目标: ',
+    recipeActualPrefix: '当前食谱: ',
+    recipeBtnRegen: '🔄 不喜欢这套？帮我重新换一套减脂食谱',
+    
+    // Plan Sheet
+    sheetMilestoneTitle: '🏁 阶段减重里程碑目标',
+    sheetMonthTitle: '📅 减重数据月历总览 (Excel 风格)',
+    sheetMonthSub: '(轻触某行可跳转至该日进行打卡修改)',
+    
+    // Data Analytics
+    analysisChartTitle: '过去7天晨晚体重波动图',
+    analysisChartMorning: '清晨空腹体重',
+    analysisChartBedtime: '睡前体重',
+    analysisProfileTitle: '我的个人身体档案',
+    analysisProfileEdit: '修改指标',
+    analysisProfileLogout: '退出登录',
+    analysisLogsTitle: '历史记录日志',
+    analysisSyncTitle: '📲 数据多端迁移与同步备份',
+    analysisSyncDesc: '本工具为离线优先应用，数据默认存储在当前设备的本地浏览器中。您可以通过以下功能导出数据，并在另一台设备上导入合并，实现多端同步：',
+    analysisBtnExport: '📤 导出此设备备份',
+    analysisBtnImport: '📥 导入并合并备份',
+    analysisSyncNote: '(注：导入采用“合并覆盖”策略，合并两端所有的打卡日志，不会造成数据丢失)',
+    
+    // Auth Modal
+    authTitle: '轻盈减重助手',
+    authTabLogin: '账号登录',
+    authTabRegister: '注册账号',
+    authLoginUserLbl: '账号（自定义用户名）',
+    authLoginUserPh: '请输入您的账号名称',
+    authLoginPassLbl: '密码',
+    authLoginPassPh: '请输入密码',
+    authRemember: ' 记住密码',
+    authBtnLogin: '立即登录',
+    authRegUserLbl: '新账号（自定义用户名）',
+    authRegUserPh: '请输入您想设定的账号名称',
+    authRegPassLbl: '密码',
+    authRegPassPh: '请设置密码',
+    authBtnReg: '注册并登录',
+    
+    // Profile Modal
+    profTitle: '配置个人减重目标',
+    profDesc: '我们需要您的身高体重信息计算每日基础代谢率 (BMR) 与每日消耗总热量 (TDEE)，从而为您定制合理安全的卡路里亏空目标。',
+    profHeightLbl: '身高 (厘米)*',
+    profWeightLbl: '当前体重 (公斤)*',
+    profTargetWeightLbl: '目标体重 (公斤)*',
+    profDurationLbl: '期望计划时长*',
+    profDuration1: '1 个月达到',
+    profDuration2: '2 个月达到',
+    profDuration3: '3 个月达到',
+    profDuration6: '6 个月达到',
+    profDurationCustom: '自定义输入...',
+    profCustomDurationLbl: '自定义计划时长 (个月)*',
+    profAiLbl: '🤖 文本 AI 饮食解析配置',
+    profAiProviderLbl: '选择 AI 渠道*',
+    profAiProviderPuter: '内置免配置通道 (基于 Puter AI, 免Key直连)',
+    profAiProviderGemini: 'Google Gemini (自备 Gemini API Key)',
+    profAiProviderDeepseek: 'DeepSeek (自备 DeepSeek API Key)',
+    profAiProviderSilicon: '硅基流动 SiliconFlow (自备 硅基流动 Key)',
+    profAiProviderCustom: '自定义 OpenAI 兼容接口 (如自建代理、中转等)',
+    profAiUrlLbl: 'API 接口地址 (Base URL)*',
+    profAiModelLbl: '模型名称 (Model)*',
+    profAiKeyLbl: '🔑 API Key*',
+    profAiBtnTest: '⚡ 测试 AI 连接',
+    profAgeLbl: '年龄*',
+    profGenderLbl: '性别*',
+    profGenderFemale: '女士',
+    profGenderMale: '男士',
+    profActivityLbl: '日常身体活跃度*',
+    profActivitySed: '久坐不动 / 极少运动 (BMR x 1.2)',
+    profActivityLight: '轻度活跃 (每周1-3次轻量运动, BMR x 1.375)',
+    profActivityMod: '中度活跃 (每周3-5次中强度运动, BMR x 1.55)',
+    profActivityVery: '重度活跃 (每周6-7次高强度运动, BMR x 1.725)',
+    profBtnCancel: '取消',
+    profBtnSubmit: '生成计划',
+    
+    // Test Modal
+    testModalTitle: '🛠️ AI 连接测试',
+    testStep1: '第一步：验证 API 输入参数',
+    testStep2: '第二步：与 API 服务器握手',
+    testStep3: '第三步：数据解析与格式验证',
+    testBtnClose: '关闭窗口',
+    testBtnRetest: '重新测试'
+  },
+  en: {
+    logoText: 'Easyslim',
+    navDashboard: 'Dashboard',
+    navEat: 'Diet Log',
+    navRecipe: 'Recipes',
+    navSheet: 'Plan Sheet',
+    navAnalytics: 'Analytics',
+    btnProfile: 'Set Target',
+    btnLogout: '🚪 Logout',
+    headerTitlePrefix: 'Smart Calorie & Recipe Customization | 👤 Account: ',
+    lblSwitchDate: 'Date',
+    btnMobileTarget: 'Target',
+    
+    // Dashboard
+    dashRingTitle: 'Daily Calorie Ring',
+    dashRingEaten: 'Eaten kcal',
+    dashStatTarget: '🎯 Target Calories',
+    dashStatEaten: '🥑 Calories Eaten',
+    dashStatRemaining: '⚖️ Remaining Calories',
+    dashWeightTitle: 'Daily Weight Fluctuation',
+    dashWeightMorning: '🌅 Morning Weight',
+    dashWeightBedtime: '🌙 Bedtime Weight',
+    dashWeightMorningPh: 'Weight',
+    dashWeightBedtimePh: 'Weight',
+    dashWeightDiffPrefix: 'Morning/Bedtime Diff: ',
+    dashExerciseLabel: '🏃‍♂️ Today\'s Exercise & Duration',
+    dashExercisePh: 'e.g., 30m run, 1000 jump ropes',
+    dashNotesLabel: '📝 Meals/Eating Out & Other Notes',
+    dashNotesPh: 'e.g., Dinner out, coke zero, cheat meal',
+    dashRecipeTitle: 'Today\'s Water-Oil Braised Recipes',
+    dashRecipeView: 'View All',
+    dashDistributionTitle: 'Calorie Distribution',
+    dashDistributionGo: 'Log Meals',
+    dashCalBreakfast: '🌅 Breakfast Eaten',
+    dashCalLunch: '☀️ Lunch Eaten',
+    dashCalDinner: '🌙 Dinner Eaten',
+    dashCalExtra: '🍎 Snacks Eaten',
+    dashStrategyTitle: '📝 Daily Health Evaluation & Strategy',
+    
+    // Diet Logger
+    eatTitle: 'Diet Logging & AI Parser',
+    eatTabBreakfast: 'Breakfast',
+    eatTabLunch: 'Lunch',
+    eatTabDinner: 'Dinner',
+    eatTabExtra: 'Snacks',
+    eatRawLabel: 'Tell me what you ate:',
+    eatRawPh: 'e.g., Had 2 boiled eggs, 1 slice of whole wheat toast, and milk for breakfast. The system will automatically extract ingredients and estimate calories.',
+    eatBtnParse: 'AI Calorie Parser',
+    eatBtnCustom: '+ Custom Food',
+    eatFoodDetailTitle: '📋 Meal Food Details',
+    eatFoodDetailSub: '(Weight can be edited directly)',
+    eatParsedPlaceholder: 'Tell me what you ate above, and click "AI Calorie Parser"',
+    eatBtnSave: 'Confirm & Save to Today\'s Record',
+    eatSnackTitle: '💡 Smart Snack Recommendation',
+    eatSnackDesc: 'If your daily calorie intake falls below the safe limit for maintaining BMR, the system suggests these snack options:',
+    
+    // Healthy Recipes
+    recipeMainTitle: 'Recommended Water-Oil Braised Recipes',
+    recipeGoalPrefix: 'Daily Target: ',
+    recipeActualPrefix: 'Current Recipes: ',
+    recipeBtnRegen: '🔄 Don\'t like this? Regenerate a new recipe set',
+    
+    // Plan Sheet
+    sheetMilestoneTitle: '🏁 Weight Loss Milestone Targets',
+    sheetMonthTitle: '📅 Weight Data Monthly Sheet (Excel Style)',
+    sheetMonthSub: '(Click any row to jump and edit logs for that day)',
+    
+    // Data Analytics
+    analysisChartTitle: 'Past 7 Days Weight Fluctuation',
+    analysisChartMorning: 'Morning Weight',
+    analysisChartBedtime: 'Bedtime Weight',
+    analysisProfileTitle: 'My Personal Profile',
+    analysisProfileEdit: 'Edit Profile',
+    analysisProfileLogout: 'Logout',
+    analysisLogsTitle: 'History Logs',
+    analysisSyncTitle: '📲 Data Migration & Sync',
+    analysisSyncDesc: 'This app is offline-first. Data is saved locally. You can export data and import/merge it on other devices for syncing:',
+    analysisBtnExport: '📤 Export Device Backup',
+    analysisBtnImport: '📥 Import & Merge Backup',
+    analysisSyncNote: '(Note: Import merges logs from both devices, preventing any data loss)',
+    
+    // Auth Modal
+    authTitle: 'Easyslim Assistant',
+    authTabLogin: 'Login',
+    authTabRegister: 'Register',
+    authLoginUserLbl: 'Account Username',
+    authLoginUserPh: 'Enter your username',
+    authLoginPassLbl: 'Password',
+    authLoginPassPh: 'Enter your password',
+    authRemember: ' Remember Password',
+    authBtnLogin: 'Login Now',
+    authRegUserLbl: 'New Username',
+    authRegUserPh: 'Set your username',
+    authRegPassLbl: 'Password',
+    authRegPassPh: 'Set your password',
+    authBtnReg: 'Register & Login',
+    
+    // Profile Modal
+    profTitle: 'Set Weight Loss Target',
+    profDesc: 'We need your height and weight to calculate your BMR and TDEE, tailoring a safe daily calorie target for you.',
+    profHeightLbl: 'Height (cm)*',
+    profWeightLbl: 'Current Weight (kg)*',
+    profTargetWeightLbl: 'Target Weight (kg)*',
+    profDurationLbl: 'Target Duration*',
+    profDuration1: '1 Month',
+    profDuration2: '2 Months',
+    profDuration3: '3 Months',
+    profDuration6: '6 Months',
+    profDurationCustom: 'Custom Input...',
+    profCustomDurationLbl: 'Custom Duration (months)*',
+    profAiLbl: '🤖 Diet AI Parser Configuration',
+    profAiProviderLbl: 'Select AI Provider*',
+    profAiProviderPuter: 'Built-in Channel (Puter AI, Keyless)',
+    profAiProviderGemini: 'Google Gemini (Self-provided Key)',
+    profAiProviderDeepseek: 'DeepSeek (Self-provided Key)',
+    profAiProviderSilicon: 'SiliconFlow (Self-provided Key)',
+    profAiProviderCustom: 'Custom OpenAI Compatible Endpoint',
+    profAiUrlLbl: 'API Endpoint (Base URL)*',
+    profAiModelLbl: 'Model Name (Model)*',
+    profAiKeyLbl: '🔑 API Key*',
+    profAiBtnTest: '⚡ Test AI Connection',
+    profAgeLbl: 'Age*',
+    profGenderLbl: 'Gender*',
+    profGenderFemale: 'Female',
+    profGenderMale: 'Male',
+    profActivityLbl: 'Daily Activity level*',
+    profActivitySed: 'Sedentary (BMR x 1.2)',
+    profActivityLight: 'Lightly Active (BMR x 1.375)',
+    profActivityMod: 'Moderately Active (BMR x 1.55)',
+    profActivityVery: 'Very Active (BMR x 1.725)',
+    profBtnCancel: 'Cancel',
+    profBtnSubmit: 'Save & Generate',
+    
+    // Test Modal
+    testModalTitle: '🛠️ AI Connection Test',
+    testStep1: 'Step 1: Validate API Input Parameters',
+    testStep2: 'Step 2: Connection & Handshake',
+    testStep3: 'Step 3: Data Parsing & Validation',
+    testBtnClose: 'Close Window',
+    testBtnRetest: 'Retest'
+  }
+};
+
+// 翻译翻译食谱或文本的快捷包装器
+function t(str) {
+  if (appState.language === 'en') {
+    return recipeTranslations[str] || str;
+  }
+  return str;
+}
+
+// 动态将翻译应用到页面 DOM 结构
+function applyLanguage() {
+  const lang = appState.language || 'zh';
+  const dict = UI_TRANSLATIONS[lang];
+  if (!dict) return;
+
+  // 1. 切换按钮文字
+  const langToggleBtn = document.getElementById('langToggleBtn');
+  if (langToggleBtn) {
+    langToggleBtn.innerHTML = `🌐 ${lang === 'en' ? '中文' : 'English'}`;
+  }
+
+  // 2. 侧边栏品牌和导航标签
+  const logoText = document.querySelector('.logo-text');
+  if (logoText) logoText.innerText = dict.logoText;
+
+  const sidebarNavs = document.querySelectorAll('.sidebar .nav-links .nav-item');
+  const navDict = {
+    dashboard: dict.navDashboard,
+    eat: dict.navEat,
+    recipe: dict.navRecipe,
+    sheet: dict.navSheet,
+    analytics: dict.navAnalytics
+  };
+  
+  sidebarNavs.forEach(btn => {
+    const tabId = btn.getAttribute('data-tab-target');
+    if (navDict[tabId]) {
+      btn.childNodes[btn.childNodes.length - 1].nodeValue = '\n          ' + navDict[tabId] + '\n        ';
+    }
+  });
+
+  const mobileNavs = document.querySelectorAll('.mobile-nav .mobile-nav-item');
+  const mobileNavDict = {
+    dashboard: lang === 'en' ? 'Overview' : '概览',
+    eat: lang === 'en' ? 'Diet' : '饮食',
+    recipe: lang === 'en' ? 'Recipe' : '食谱',
+    sheet: lang === 'en' ? 'Sheet' : '总览',
+    analytics: lang === 'en' ? 'Data' : '数据'
+  };
+  mobileNavs.forEach(btn => {
+    const tabId = btn.getAttribute('data-tab-target');
+    if (mobileNavDict[tabId]) {
+      const span = btn.querySelector('span');
+      if (span) span.innerText = mobileNavDict[tabId];
+    }
+  });
+
+  const sidebarTargetBtn = document.querySelector('.sidebar button[onclick="openModal(\'profileModal\')"]');
+  if (sidebarTargetBtn) {
+    sidebarTargetBtn.childNodes[sidebarTargetBtn.childNodes.length - 1].nodeValue = '\n          ' + dict.btnProfile + '\n        ';
+  }
+  const sidebarLogoutBtn = document.querySelector('.sidebar button[onclick="logout()"]');
+  if (sidebarLogoutBtn) sidebarLogoutBtn.innerText = dict.btnLogout;
+
+  // 3. 头部信息
+  const currentUserParent = document.getElementById('currentUserLabel')?.parentNode;
+  if (currentUserParent && currentUserParent.childNodes[0]) {
+    currentUserParent.childNodes[0].nodeValue = dict.headerTitlePrefix;
+  }
+  const lblSwitchDate = document.getElementById('lblSwitchDate');
+  if (lblSwitchDate) lblSwitchDate.innerText = dict.lblSwitchDate;
+  const btnMobileTarget = document.getElementById('btnMobileTarget');
+  if (btnMobileTarget) btnMobileTarget.innerText = dict.btnMobileTarget;
+
+  // 4. 登录/注册模块
+  const authTitle = document.querySelector('.auth-logo h2');
+  if (authTitle) authTitle.innerText = dict.authTitle;
+  const authTabLogin = document.getElementById('authTabLogin');
+  if (authTabLogin) authTabLogin.innerText = dict.authTabLogin;
+  const authTabRegister = document.getElementById('authTabRegister');
+  if (authTabRegister) authTabRegister.innerText = dict.authTabRegister;
+  
+  const loginUserLbl = document.querySelector('#loginForm .form-group:nth-child(1) label');
+  if (loginUserLbl) loginUserLbl.innerText = dict.authLoginUserLbl;
+  const loginUserIn = document.getElementById('loginUser');
+  if (loginUserIn) loginUserIn.placeholder = dict.authLoginUserPh;
+  const loginPassLbl = document.querySelector('#loginForm .form-group:nth-child(2) label');
+  if (loginPassLbl) loginPassLbl.innerText = dict.authLoginPassLbl;
+  const loginPassIn = document.getElementById('loginPass');
+  if (loginPassIn) loginPassIn.placeholder = dict.authLoginPassPh;
+  
+  const loginRememberLbl = document.querySelector('#loginForm label[style*="cursor:pointer"]');
+  if (loginRememberLbl) {
+    loginRememberLbl.innerHTML = `<input type="checkbox" id="loginRemember" style="accent-color:var(--primary); cursor:pointer; width:14px; height:14px;"> ${dict.authRemember}`;
+  }
+  const loginSubmitBtn = document.querySelector('#loginForm button[type="submit"]');
+  if (loginSubmitBtn) loginSubmitBtn.innerText = dict.authBtnLogin;
+
+  const regUserLbl = document.querySelector('#registerForm .form-group:nth-child(1) label');
+  if (regUserLbl) regUserLbl.innerText = dict.authRegUserLbl;
+  const regUserIn = document.getElementById('registerUser');
+  if (regUserIn) regUserIn.placeholder = dict.authRegUserPh;
+  const regPassLbl = document.querySelector('#registerForm .form-group:nth-child(2) label');
+  if (regPassLbl) regPassLbl.innerText = dict.authRegPassLbl;
+  const regPassIn = document.getElementById('registerPass');
+  if (regPassIn) regPassIn.placeholder = dict.authRegPassPh;
+  const regRememberLbl = document.querySelector('#registerForm label[style*="cursor:pointer"]');
+  if (regRememberLbl) {
+    regRememberLbl.innerHTML = `<input type="checkbox" id="registerRemember" style="accent-color:var(--primary); cursor:pointer; width:14px; height:14px;"> ${dict.authRemember}`;
+  }
+  const regSubmitBtn = document.querySelector('#registerForm button[type="submit"]');
+  if (regSubmitBtn) regSubmitBtn.innerText = dict.authBtnReg;
+
+  // 5. 今日概览 (Dashboard)
+  const dashRingTitle = document.querySelector('#dashboardSection .card:nth-child(1) .card-title span');
+  if (dashRingTitle) dashRingTitle.innerText = dict.dashRingTitle;
+  const labelEl = document.querySelector('.circle-label');
+  if (labelEl) labelEl.innerText = dict.dashRingEaten;
+  
+  const statsList = document.querySelectorAll('.progress-stats-list .stat-row');
+  if (statsList.length >= 3) {
+    statsList[0].querySelector('.stat-label').innerText = dict.dashStatTarget;
+    statsList[1].querySelector('.stat-label').innerText = dict.dashStatEaten;
+    statsList[2].querySelector('.stat-label').innerText = dict.dashStatRemaining;
+  }
+  
+  const dashWeightTitle = document.querySelector('.weight-card-grid').parentNode.querySelector('.card-title span');
+  if (dashWeightTitle) dashWeightTitle.innerText = dict.dashWeightTitle;
+  const morningLbl = document.querySelector('.weight-sub-box.morning .weight-box-title');
+  if (morningLbl) morningLbl.innerText = dict.dashWeightMorning;
+  const morningIn = document.getElementById('morningWeightInput');
+  if (morningIn) morningIn.placeholder = dict.dashWeightMorningPh;
+  const bedtimeLbl = document.querySelector('.weight-sub-box.bedtime .weight-box-title');
+  if (bedtimeLbl) bedtimeLbl.innerText = dict.dashWeightBedtime;
+  const bedtimeIn = document.getElementById('bedtimeWeightInput');
+  if (bedtimeIn) bedtimeIn.placeholder = dict.dashWeightBedtimePh;
+  
+  const exerciseLabel = document.querySelector('label[for="exerciseInput"]');
+  if (exerciseLabel) exerciseLabel.innerText = dict.dashExerciseLabel;
+  const exerciseIn = document.getElementById('exerciseInput');
+  if (exerciseIn) exerciseIn.placeholder = dict.dashExercisePh;
+  const notesLabel = document.querySelector('label[for="notesInput"]');
+  if (notesLabel) notesLabel.innerText = dict.dashNotesLabel;
+  const notesIn = document.getElementById('notesInput');
+  if (notesIn) notesIn.placeholder = dict.dashNotesPh;
+  
+  const dashRecipeTitle = document.querySelector('#dashboardRecipeQuickView').parentNode.querySelector('.card-title span');
+  if (dashRecipeTitle) dashRecipeTitle.innerText = dict.dashRecipeTitle;
+  const dashRecipeView = document.querySelector('#dashboardRecipeQuickView').parentNode.querySelector('.card-title button');
+  if (dashRecipeView) dashRecipeView.innerText = dict.dashRecipeView;
+  
+  const dashDistTitle = document.getElementById('calBreakfast').parentNode.parentNode.parentNode.querySelector('.card-title span');
+  if (dashDistTitle) dashDistTitle.innerText = dict.dashDistributionTitle;
+  const dashDistGo = document.getElementById('calBreakfast').parentNode.parentNode.parentNode.querySelector('.card-title button');
+  if (dashDistGo) dashDistGo.innerText = dict.dashDistributionGo;
+  
+  const calBreakfastLabel = document.getElementById('calBreakfast').parentNode.querySelector('.stat-label');
+  if (calBreakfastLabel) calBreakfastLabel.innerText = dict.dashCalBreakfast;
+  const calLunchLabel = document.getElementById('calLunch').parentNode.querySelector('.stat-label');
+  if (calLunchLabel) calLunchLabel.innerText = dict.dashCalLunch;
+  const calDinnerLabel = document.getElementById('calDinner').parentNode.querySelector('.stat-label');
+  if (calDinnerLabel) calDinnerLabel.innerText = dict.dashCalDinner;
+  const calExtraLabel = document.getElementById('calExtra').parentNode.querySelector('.stat-label');
+  if (calExtraLabel) calExtraLabel.innerText = dict.dashCalExtra;
+  
+  const strategyTitle = document.getElementById('strategyList').parentNode.querySelector('.card-title span');
+  if (strategyTitle) strategyTitle.innerText = dict.dashStrategyTitle;
+
+  // 6. 饮食记录页 (Diet Logger)
+  const eatTitle = document.querySelector('#eatSection .card:nth-child(1) .card-title span');
+  if (eatTitle) eatTitle.innerText = dict.eatTitle;
+  const mealTabs = document.querySelectorAll('#eatSection .meal-tab');
+  if (mealTabs.length >= 4) {
+    mealTabs[0].innerText = dict.eatTabBreakfast;
+    mealTabs[1].innerText = dict.eatTabLunch;
+    mealTabs[2].innerText = dict.eatTabDinner;
+    mealTabs[3].innerText = dict.eatTabExtra;
+  }
+  const eatRawLabel = document.querySelector('label[for="dietRawInput"]');
+  if (eatRawLabel) eatRawLabel.innerText = dict.eatRawLabel;
+  const eatRawIn = document.getElementById('dietRawInput');
+  if (eatRawIn) eatRawIn.placeholder = dict.eatRawPh;
+  const parseDietBtn = document.getElementById('parseDietBtn');
+  if (parseDietBtn) {
+    // Keep warning icon
+    parseDietBtn.childNodes[parseDietBtn.childNodes.length - 1].nodeValue = ' ' + dict.eatBtnParse;
+  }
+  const addCustomFoodBtn = document.getElementById('addCustomFoodBtn');
+  if (addCustomFoodBtn) addCustomFoodBtn.innerText = dict.eatBtnCustom;
+  const eatFoodDetailTitle = document.getElementById('parsedFoodList').parentNode.querySelector('h3 span:first-child');
+  if (eatFoodDetailTitle) eatFoodDetailTitle.innerText = dict.eatFoodDetailTitle;
+  const eatFoodDetailSub = document.getElementById('parsedFoodList').parentNode.querySelector('h3 span:last-child');
+  if (eatFoodDetailSub) eatFoodDetailSub.innerText = dict.eatFoodDetailSub;
+  const saveMealBtn = document.getElementById('saveMealBtn');
+  if (saveMealBtn) saveMealBtn.innerText = dict.eatBtnSave;
+  
+  const eatSnackTitle = document.querySelector('.snack-rec-panel .card-title span');
+  if (eatSnackTitle) eatSnackTitle.innerText = dict.eatSnackTitle;
+  const eatSnackDesc = document.querySelector('.snack-rec-panel p');
+  if (eatSnackDesc) eatSnackDesc.innerText = dict.eatSnackDesc;
+
+  // 7. 健康食谱页 (Recipes)
+  const recipeMainTitle = document.querySelector('#recipeSection h2');
+  if (recipeMainTitle) recipeMainTitle.innerText = dict.recipeMainTitle;
+  const regenBtn = document.getElementById('regenerateRecipeBtn');
+  if (regenBtn) regenBtn.innerText = dict.recipeBtnRegen;
+
+  // 8. 计划总览页 (Plan Sheet)
+  const sheetMilestoneTitle = document.querySelector('#sheetSection .card:first-child .card-title span');
+  if (sheetMilestoneTitle) sheetMilestoneTitle.innerText = dict.sheetMilestoneTitle;
+  const sheetMonthTitle = document.querySelector('#sheetTableWrapper').parentNode.querySelector('.card-title span');
+  if (sheetMonthTitle) sheetMonthTitle.innerText = dict.sheetMonthTitle;
+  const sheetMonthSub = document.querySelector('#sheetTableWrapper').parentNode.querySelector('.card-title span + span');
+  if (sheetMonthSub) sheetMonthSub.innerText = dict.sheetMonthSub;
+
+  // 9. 数据分析页 (Analytics)
+  const chartCardTitle = document.getElementById('weightChartContainer').parentNode.querySelector('.card-title span');
+  if (chartCardTitle) chartCardTitle.innerText = dict.analysisChartTitle;
+  const chartLegendMorn = document.querySelector('.chart-legend .legend-item:nth-child(1) span');
+  if (chartLegendMorn) chartLegendMorn.innerText = dict.analysisChartMorning;
+  const chartLegendBed = document.querySelector('.chart-legend .legend-item:nth-child(2) span');
+  if (chartLegendBed) chartLegendBed.innerText = dict.analysisChartBedtime;
+  
+  const profileCardTitle = document.getElementById('analyticsProfileDetails').parentNode.querySelector('.card-title span');
+  if (profileCardTitle) profileCardTitle.innerText = dict.analysisProfileTitle;
+  const profileEditBtn = document.getElementById('analyticsProfileDetails').parentNode.querySelector('.card-title button:first-of-type');
+  if (profileEditBtn) profileEditBtn.innerText = dict.analysisProfileEdit;
+  const profileLogoutBtn = document.getElementById('analyticsProfileDetails').parentNode.querySelector('.card-title button:last-of-type');
+  if (profileLogoutBtn) profileLogoutBtn.innerText = dict.analysisProfileLogout;
+  
+  const logsCardTitle = document.getElementById('historyLogsContainer').parentNode.querySelector('.card-title span');
+  if (logsCardTitle) logsCardTitle.innerText = dict.analysisLogsTitle;
+  
+  const syncCardTitle = document.getElementById('exportDataBtn').parentNode.parentNode.querySelector('.card-title span');
+  if (syncCardTitle) syncCardTitle.innerText = dict.analysisSyncTitle;
+  const syncCardDesc = document.getElementById('exportDataBtn').parentNode.parentNode.querySelector('p');
+  if (syncCardDesc) syncCardDesc.innerText = dict.analysisSyncDesc;
+  const exportDataBtn = document.getElementById('exportDataBtn');
+  if (exportDataBtn) exportDataBtn.innerText = dict.analysisBtnExport;
+  const importLabel = document.getElementById('importDataInput').previousElementSibling;
+  if (importLabel) importLabel.innerText = dict.analysisBtnImport;
+  const syncNote = document.getElementById('exportDataBtn').parentNode.querySelector('span');
+  if (syncNote) syncNote.innerText = dict.analysisSyncNote;
+
+  // 10. 设置目标弹窗 (Profile Modal)
+  const profModalTitle = document.querySelector('#profileModal .modal-header h2');
+  if (profModalTitle) profModalTitle.innerText = dict.profTitle;
+  const profDescText = document.querySelector('#profileForm .modal-body p');
+  if (profDescText) profDescText.innerText = dict.profDesc;
+  
+  const pHeightLabel = document.querySelector('label[for="pHeight"]');
+  if (pHeightLabel) pHeightLabel.innerText = dict.profHeightLbl;
+  const pWeightLabel = document.querySelector('label[for="pWeight"]');
+  if (pWeightLabel) pWeightLabel.innerText = dict.profWeightLbl;
+  const pTargetWeightLabel = document.querySelector('label[for="pTargetWeight"]');
+  if (pTargetWeightLabel) pTargetWeightLabel.innerText = dict.profTargetWeightLbl;
+  const pDurationLabel = document.querySelector('label[for="pDuration"]');
+  if (pDurationLabel) pDurationLabel.innerText = dict.profDurationLbl;
+  
+  const pDuration = document.getElementById('pDuration');
+  if (pDuration) {
+    pDuration.options[0].text = dict.profDuration1;
+    pDuration.options[1].text = dict.profDuration2;
+    pDuration.options[2].text = dict.profDuration3;
+    pDuration.options[3].text = dict.profDuration6;
+    pDuration.options[4].text = dict.profDurationCustom;
+  }
+  const pDurationCustomLabel = document.querySelector('label[for="pDurationCustom"]');
+  if (pDurationCustomLabel) pDurationCustomLabel.innerText = dict.profCustomDurationLbl;
+  
+  const profAiLabel = document.querySelector('#profileForm label[style*="font-weight:600"]');
+  if (profAiLabel) profAiLabel.innerText = dict.profAiLbl;
+  const profAiProviderLabel = document.querySelector('label[for="pAiProvider"]');
+  if (profAiProviderLabel) profAiProviderLabel.innerText = dict.profAiProviderLbl;
+  
+  const pAiProvider = document.getElementById('pAiProvider');
+  if (pAiProvider) {
+    pAiProvider.options[0].text = dict.profAiProviderPuter;
+    pAiProvider.options[1].text = dict.profAiProviderGemini;
+    pAiProvider.options[2].text = dict.profAiProviderDeepseek;
+    pAiProvider.options[3].text = dict.profAiProviderSilicon;
+    pAiProvider.options[4].text = dict.profAiProviderCustom;
+  }
+  
+  const pAiUrlLabel = document.querySelector('label[for="pAiUrl"]');
+  if (pAiUrlLabel) pAiUrlLabel.innerText = dict.profAiUrlLbl;
+  const pAiModelLabel = document.querySelector('label[for="pAiModel"]');
+  if (pAiModelLabel) pAiModelLabel.innerText = dict.profAiModelLbl;
+  const pAiKeyLabel = document.getElementById('pAiKeyLabel');
+  if (pAiKeyLabel) pAiKeyLabel.innerText = dict.profAiKeyLbl;
+  
+  const testAiBtn = document.getElementById('testAiBtn');
+  if (testAiBtn) testAiBtn.innerText = dict.profAiBtnTest;
+  
+  const pAgeLabel = document.querySelector('label[for="pAge"]');
+  if (pAgeLabel) pAgeLabel.innerText = dict.profAgeLbl;
+  const pGenderLabel = document.querySelector('label[for="pGender"]');
+  if (pGenderLabel) pGenderLabel.innerText = dict.profGenderLbl;
+  
+  const pGender = document.getElementById('pGender');
+  if (pGender) {
+    pGender.options[0].text = dict.profGenderFemale;
+    pGender.options[1].text = dict.profGenderMale;
+  }
+  
+  const pActivityLabel = document.querySelector('label[for="pActivity"]');
+  if (pActivityLabel) pActivityLabel.innerText = dict.profActivityLbl;
+  const pActivity = document.getElementById('pActivity');
+  if (pActivity) {
+    pActivity.options[0].text = dict.profActivitySed;
+    pActivity.options[1].text = dict.profActivityLight;
+    pActivity.options[2].text = dict.profActivityMod;
+    pActivity.options[3].text = dict.profActivityVery;
+  }
+  
+  const profCancelBtn = document.querySelector('#profileForm .modal-body button[onclick="closeModal(\'profileModal\')"]');
+  if (profCancelBtn) profCancelBtn.innerText = dict.profBtnCancel;
+  const profSubmitBtn = document.querySelector('#profileForm button[type="submit"]');
+  if (profSubmitBtn) profSubmitBtn.innerText = dict.profBtnSubmit;
+
+  // 11. AI 连接测试模态框 (Test Modal)
+  const testModalTitle = document.querySelector('#testAiModal .modal-header h2');
+  if (testModalTitle) testModalTitle.innerText = dict.testModalTitle;
+  const stepParamsLabel = document.querySelector('#step_params .step-text');
+  if (stepParamsLabel) stepParamsLabel.innerText = dict.testStep1;
+  const stepNetworkLabel = document.querySelector('#step_network .step-text');
+  if (stepNetworkLabel) stepNetworkLabel.innerText = dict.testStep2;
+  const stepParseLabel = document.querySelector('#step_parse .step-text');
+  if (stepParseLabel) stepParseLabel.innerText = dict.testStep3;
+  const testCloseBtn = document.querySelector('#testAiModal .modal-body button[onclick="closeModal(\'testAiModal\')"]');
+  if (testCloseBtn) testCloseBtn.innerText = dict.testBtnClose;
+  const retestAiBtn = document.getElementById('retestAiBtn');
+  if (retestAiBtn) retestAiBtn.innerText = dict.testBtnRetest;
 }

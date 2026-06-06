@@ -182,7 +182,10 @@ function calculateTargetCalories(currentWeight, targetWeight, durationMonths, bm
   const safeMinLimit = bmr * 0.9;
   if (targetCalories < safeMinLimit) {
     targetCalories = safeMinLimit;
-    warning = '⚠️ 您的减重目标速度过快，为保护代谢和避免肌肉流失，系统已将每日热量预算调整为安全底线（基础代谢的90%）。建议延长减重周期或配合适量运动。';
+    const isEn = (typeof appState !== 'undefined' && appState.language === 'en');
+    warning = isEn 
+      ? '⚠️ Your weight loss target is too aggressive. To protect your metabolism and prevent muscle loss, the daily calorie budget has been adjusted to a safe limit (90% of BMR). We recommend extending the duration or combining with moderate exercise.'
+      : '⚠️ 您的减重目标速度过快，为保护代谢和避免肌肉流失，系统已将每日热量预算调整为安全底线（基础代谢的90%）。建议延长减重周期或配合适量运动。';
   }
   
   if (targetCalories > tdee - 200 && totalWeightToLose > 0) {

@@ -102,16 +102,19 @@
           <h1 id="currentDateLabel">6月5日</h1>
         </div>
         <div class="header-actions">
+          <button class="btn btn-secondary btn-sm" id="langToggleBtn" style="padding: 6px 12px; font-weight: 600; border-radius: 12px; display: flex; align-items: center; gap: 4px;">
+            🌐 EN / 中
+          </button>
           <div class="recipe-day-selector">
             <button class="btn btn-secondary btn-icon btn-sm" id="prevDateBtn" style="padding:4px 8px">
               <svg style="width:16px;height:16px;transform:rotate(180deg)" viewBox="0 0 24 24"><path fill="currentColor" d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/></svg>
             </button>
-            <span style="font-weight:600; font-size:14px; margin:0 8px">切换日期</span>
+            <span style="font-weight:600; font-size:14px; margin:0 8px" id="lblSwitchDate">切换日期</span>
             <button class="btn btn-secondary btn-icon btn-sm" id="nextDateBtn" style="padding:4px 8px">
               <svg style="width:16px;height:16px" viewBox="0 0 24 24"><path fill="currentColor" d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/></svg>
             </button>
           </div>
-          <button class="btn btn-primary btn-sm mobile-only" style="display:none" onclick="openModal('profileModal')">目标设置</button>
+          <button class="btn btn-primary btn-sm mobile-only" style="display:none" onclick="openModal('profileModal')" id="btnMobileTarget">目标设置</button>
         </div>
       </div>
 
