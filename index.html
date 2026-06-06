@@ -316,19 +316,56 @@
       <!-- SECTION 3: HEALTHY RECIPE (健康食谱) -->
       <!-- ============================================== -->
       <section class="page-section" id="recipeSection">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <h2 style="font-size:20px; font-weight:700;">今日推荐水油焖菜食谱</h2>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+          <h2 style="font-size:20px; font-weight:700;" id="recipeMainTitle">今日推荐健康食谱</h2>
           <div style="font-size:13px; color:var(--text-muted)">
-            每日目标: <span id="recipeTargetCaloriesLabel" style="color:var(--primary); font-weight:700">0</span> kcal | 
-            当前食谱: <span id="recipeActualCaloriesLabel" style="font-weight:700">0</span> kcal
+            <span id="recipeGoalText">每日目标:</span> <span id="recipeTargetCaloriesLabel" style="color:var(--primary); font-weight:700">0</span> kcal | 
+            <span id="recipeActualText">当前食谱:</span> <span id="recipeActualCaloriesLabel" style="font-weight:700">0</span> kcal
+          </div>
+        </div>
+        
+        <!-- Diet Pattern & Series Info Card -->
+        <div class="recipe-info-card" id="recipeInfoCard" style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
+          <!-- Will be dynamically generated in app.js -->
+        </div>
+
+        <!-- Fasting Window Indicator / Progress -->
+        <div class="fasting-window-card" id="fastingWindowCard" style="display:none; margin-bottom:16px;">
+          <!-- Will be dynamically populated for 16:8 or 20:4 or 5:2 -->
+        </div>
+
+        <!-- Meal Checkbox Selectors -->
+        <div class="meal-selectors-card" style="margin-bottom:16px;">
+          <label style="font-size:14px; font-weight:600; color:var(--text-main); margin-bottom:8px; display:block;" id="recipeMealsToEatLabel">今日计划进食餐份：</label>
+          <div style="display:flex; gap:16px; flex-wrap:wrap;">
+            <label class="custom-checkbox-container">
+              <input type="checkbox" id="recipeCheckBreakfast" checked>
+              <span class="custom-checkbox-label">🌅 早餐 (Breakfast)</span>
+            </label>
+            <label class="custom-checkbox-container">
+              <input type="checkbox" id="recipeCheckLunch" checked>
+              <span class="custom-checkbox-label">☀️ 午餐 (Lunch)</span>
+            </label>
+            <label class="custom-checkbox-container">
+              <input type="checkbox" id="recipeCheckDinner" checked>
+              <span class="custom-checkbox-label">🌙 晚餐 (Dinner)</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Warning Alert Card -->
+        <div class="alert-card warning-alert" id="recipeWarningCard" style="display:none; margin-bottom:16px;">
+          <div style="display:flex; gap:8px; align-items:flex-start;">
+            <span style="font-size:18px;">⚠️</span>
+            <div id="recipeWarningContent" style="font-size:13px; line-height:1.4;"></div>
           </div>
         </div>
         
         <div class="recipe-cards-container" id="recipeCardsContainer">
-          <!-- Dynamically populated 3 cards -->
+          <!-- Dynamically populated cards -->
         </div>
         
-        <div style="display:flex; justify-content:center; margin-top:10px;">
+        <div style="display:flex; justify-content:center; margin-top:16px;">
           <button class="btn btn-secondary" id="regenerateRecipeBtn">
             🔄 不喜欢这套？帮我重新换一套减脂食谱
           </button>
@@ -575,6 +612,65 @@
               <button type="button" class="stepper-btn" onclick="adjustStepper('pDurationCustom', 1)">
                 <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/></svg>
               </button>
+            </div>
+          </div>
+          <!-- 减肥模式与推荐食谱系列 -->
+          <div class="form-row-2" style="margin-top: 8px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+            <div class="form-group">
+              <label for="pDietPattern">减重模式 (Fasting Pattern)*</label>
+              <select id="pDietPattern" required>
+                <option value="standard" selected>标准一日三餐 (Standard 3-Meals)</option>
+                <option value="16_8">16+8 间歇性断食 (16:8 Fasting)</option>
+                <option value="20_4">20+4 战士断食 (20:4 Fasting)</option>
+                <option value="5_2">5+2 轻断食模式 (5:2 Fasting)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="pRecipeSeries">推荐食谱系列 (Recipe Series)*</label>
+              <select id="pRecipeSeries" required>
+                <option value="water_oil" selected>水油焖菜系列 (Water-Oil)</option>
+                <option value="salad">轻食沙拉系列 (Salad)</option>
+                <option value="keto">低碳生酮系列 (Keto)</option>
+                <option value="mediterranean">地中海膳食系列 (MedDiet)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 16+8 / 20+4 进食窗口设置 -->
+          <div class="form-group" id="pFastingTimeGroup" style="display:none; margin-top: 8px;">
+            <label for="pFastingStartHour">进食窗口起始时间 (Eating Window Start)*</label>
+            <select id="pFastingStartHour">
+              <option value="8">08:00 (进食窗较早，适合正常早餐和午餐)</option>
+              <option value="12" selected>12:00 (跳过早餐，适合午餐 and 晚餐)</option>
+              <option value="16">16:00 (进食窗较晚，适合下午加餐 and 晚餐)</option>
+            </select>
+          </div>
+
+          <!-- 5+2 模式选择断食日 -->
+          <div class="form-group" id="pFastingDaysGroup" style="display:none; margin-top: 8px;">
+            <label>选择每周的 2 个轻断食日 (请选择 2 天)*</label>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 6px;">
+              <label style="display:flex; align-items:center; gap:4px; font-size:13px; font-weight:normal; cursor:pointer;">
+                <input type="checkbox" name="fastingDays" value="1"> 周一
+              </label>
+              <label style="display:flex; align-items:center; gap:4px; font-size:13px; font-weight:normal; cursor:pointer;">
+                <input type="checkbox" name="fastingDays" value="2"> 周二
+              </label>
+              <label style="display:flex; align-items:center; gap:4px; font-size:13px; font-weight:normal; cursor:pointer;">
+                <input type="checkbox" name="fastingDays" value="3"> 周三
+              </label>
+              <label style="display:flex; align-items:center; gap:4px; font-size:13px; font-weight:normal; cursor:pointer;">
+                <input type="checkbox" name="fastingDays" value="4"> 周四
+              </label>
+              <label style="display:flex; align-items:center; gap:4px; font-size:13px; font-weight:normal; cursor:pointer;">
+                <input type="checkbox" name="fastingDays" value="5"> 周五
+              </label>
+              <label style="display:flex; align-items:center; gap:4px; font-size:13px; font-weight:normal; cursor:pointer;">
+                <input type="checkbox" name="fastingDays" value="6"> 周六
+              </label>
+              <label style="display:flex; align-items:center; gap:4px; font-size:13px; font-weight:normal; cursor:pointer;">
+                <input type="checkbox" name="fastingDays" value="0"> 周日
+              </label>
             </div>
           </div>
           

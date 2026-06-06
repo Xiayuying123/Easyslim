@@ -141,6 +141,55 @@ function initAppEvents() {
     }
   });
 
+  // 减肥模式选择器变化 (展示进食时间窗或轻断食日)
+  document.getElementById('pDietPattern').addEventListener('change', (e) => {
+    const pattern = e.target.value;
+    const timeGroup = document.getElementById('pFastingTimeGroup');
+    const daysGroup = document.getElementById('pFastingDaysGroup');
+    
+    if (pattern === '16_8' || pattern === '20_4') {
+      timeGroup.style.display = 'block';
+      daysGroup.style.display = 'none';
+    } else if (pattern === '5_2') {
+      timeGroup.style.display = 'none';
+      daysGroup.style.display = 'block';
+    } else {
+      timeGroup.style.display = 'none';
+      daysGroup.style.display = 'none';
+    }
+  });
+
+  // 健康食谱页面勾选框变化事件
+  ['recipeCheckBreakfast', 'recipeCheckLunch', 'recipeCheckDinner'].forEach(id => {
+    const cb = document.getElementById(id);
+    if (cb) {
+      cb.addEventListener('change', () => {
+        const record = getOrCreateTodayRecord();
+        record.checkedMeals = {
+          breakfast: document.getElementById('recipeCheckBreakfast').checked,
+          lunch: document.getElementById('recipeCheckLunch').checked,
+          dinner: document.getElementById('recipeCheckDinner').checked
+        };
+        
+        // 确保至少有一个被勾选，以防大卡计算除以0
+        const checkedCount = Object.values(record.checkedMeals).filter(Boolean).length;
+        if (checkedCount === 0) {
+          showToast(appState.language === 'en' ? 'At least one meal must be selected!' : '请至少勾选一餐！');
+          document.getElementById('recipeCheckBreakfast').checked = true;
+          record.checkedMeals.breakfast = true;
+        }
+        
+        const targetKcal = getDailyTargetCalories(appState.currentDate);
+        const series = (appState.profile && appState.profile.recipeSeries) || 'water_oil';
+        record.recipe = window.generateDailyRecipes(targetKcal, series, record.checkedMeals);
+        
+        saveData();
+        renderRecipePage();
+        updateUI();
+      });
+    }
+  });
+
   // AI 提供商选择器变化
   document.getElementById('pAiProvider').addEventListener('change', (e) => {
     // Clear test results on change
@@ -307,11 +356,13 @@ function initAppEvents() {
   document.getElementById('regenerateRecipeBtn').addEventListener('click', () => {
     if (!appState.profile) return;
     const record = getOrCreateTodayRecord();
-    record.recipe = window.generateDailyRecipes(appState.profile.targetCalories);
+    const targetKcal = getDailyTargetCalories(appState.currentDate);
+    const series = appState.profile.recipeSeries || 'water_oil';
+    record.recipe = window.generateDailyRecipes(targetKcal, series, record.checkedMeals);
     saveData();
     renderRecipePage();
     updateUI();
-    showToast('今日食谱已刷新！');
+    showToast(appState.language === 'en' ? 'Recipe refreshed!' : '今日食谱已刷新！');
   });
   
   // 移动端浮动按钮
@@ -409,6 +460,9 @@ function adjustDate(offset) {
 function getOrCreateTodayRecord() {
   const date = appState.currentDate;
   if (!appState.records[date]) {
+    const defaultChecked = getDefaultCheckedMeals();
+    const targetKcal = getDailyTargetCalories(date);
+    const series = (appState.profile && appState.profile.recipeSeries) || 'water_oil';
     appState.records[date] = {
       morningWeight: null,
       bedtimeWeight: null,
@@ -418,20 +472,27 @@ function getOrCreateTodayRecord() {
         dinner: [],
         extra: []
       },
-      recipe: appState.profile ? window.generateDailyRecipes(appState.profile.targetCalories) : {}
+      checkedMeals: defaultChecked,
+      recipe: appState.profile ? window.generateDailyRecipes(targetKcal, series, defaultChecked) : {}
     };
   }
   
+  const record = appState.records[date];
   // 补充可能因旧版本缺失的字段
-  if (!appState.records[date].meals) {
-    appState.records[date].meals = { breakfast: [], lunch: [], dinner: [], extra: [] };
+  if (!record.meals) {
+    record.meals = { breakfast: [], lunch: [], dinner: [], extra: [] };
   }
-  if (!appState.records[date].recipe || Object.keys(appState.records[date].recipe).length === 0) {
+  if (!record.checkedMeals) {
+    record.checkedMeals = getDefaultCheckedMeals();
+  }
+  if (!record.recipe || Object.keys(record.recipe).length === 0) {
     if (appState.profile) {
-      appState.records[date].recipe = window.generateDailyRecipes(appState.profile.targetCalories);
+      const targetKcal = getDailyTargetCalories(date);
+      const series = appState.profile.recipeSeries || 'water_oil';
+      record.recipe = window.generateDailyRecipes(targetKcal, series, record.checkedMeals);
     }
   }
-  return appState.records[date];
+  return record;
 }
 
 // 更新晨重、晚重
@@ -535,6 +596,23 @@ function saveProfile() {
   const aiUrl = document.getElementById('pAiUrl').value.trim();
   const aiModel = document.getElementById('pAiModel').value.trim();
   
+  // 新字段读取
+  const dietPattern = document.getElementById('pDietPattern').value;
+  const recipeSeries = document.getElementById('pRecipeSeries').value;
+  const fastingStartHour = parseInt(document.getElementById('pFastingStartHour').value) || 12;
+  
+  const fastingDays = [];
+  if (dietPattern === '5_2') {
+    const checkboxes = document.querySelectorAll('input[name="fastingDays"]:checked');
+    checkboxes.forEach(cb => {
+      fastingDays.push(cb.value);
+    });
+    if (fastingDays.length !== 2) {
+      showToast(appState.language === 'en' ? 'Please select exactly 2 fasting days!' : '请选择且仅选择2个轻断食日！');
+      return;
+    }
+  }
+
   if (!height || !currentWeight || !targetWeight || !durationMonths || !age) {
     showToast('请填写完整数据');
     return;
@@ -560,12 +638,19 @@ function saveProfile() {
     aiProvider: aiProvider || 'puter',
     aiKey: aiKey || '',
     aiUrl: aiUrl || '',
-    aiModel: aiModel || ''
+    aiModel: aiModel || '',
+    // 新增减肥模式与食谱选择
+    dietPattern,
+    recipeSeries,
+    fastingStartHour,
+    fastingDays
   };
   
-  // 重新对今天生成推荐食谱
+  // 重新对今天生成推荐食谱 (根据最新的模式和食谱系列)
   const record = getOrCreateTodayRecord();
-  record.recipe = window.generateDailyRecipes(appState.profile.targetCalories);
+  record.checkedMeals = getDefaultCheckedMeals();
+  const targetKcal = getDailyTargetCalories(appState.currentDate);
+  record.recipe = window.generateDailyRecipes(targetKcal, recipeSeries, record.checkedMeals);
   
   saveData();
   closeModal('profileModal');
@@ -576,6 +661,47 @@ function saveProfile() {
   } else {
     showToast('健康目标配置成功！');
   }
+}
+
+// 获取特定日期的卡路里目标 (5:2 轻断食日自动调整)
+function getDailyTargetCalories(dateStr) {
+  if (!appState.profile) return 1800;
+  
+  if (appState.profile.dietPattern === '5_2') {
+    const dateObj = new Date(dateStr + 'T00:00:00');
+    const dayOfWeek = String(dateObj.getDay());
+    const fastingDays = appState.profile.fastingDays || [];
+    if (fastingDays.includes(dayOfWeek)) {
+      return appState.profile.gender === 'female' ? 500 : 600;
+    }
+  }
+  return appState.profile.targetCalories;
+}
+
+// 根据模式与进食窗口获取默认勾选的餐次
+function getDefaultCheckedMeals() {
+  if (!appState.profile) return { breakfast: true, lunch: true, dinner: true };
+  const pattern = appState.profile.dietPattern || 'standard';
+  const startHour = appState.profile.fastingStartHour || 12;
+  
+  if (pattern === '16_8') {
+    if (startHour === 8) {
+      return { breakfast: true, lunch: true, dinner: false };
+    } else if (startHour === 12) {
+      return { breakfast: false, lunch: true, dinner: true };
+    } else if (startHour === 16) {
+      return { breakfast: false, lunch: false, dinner: true };
+    }
+  } else if (pattern === '20_4') {
+    if (startHour === 8) {
+      return { breakfast: true, lunch: false, dinner: false };
+    } else if (startHour === 12) {
+      return { breakfast: false, lunch: true, dinner: false };
+    } else if (startHour === 16) {
+      return { breakfast: false, lunch: false, dinner: true };
+    }
+  }
+  return { breakfast: true, lunch: true, dinner: true };
 }
 
 // 核心 UI 更新逻辑
@@ -624,7 +750,7 @@ function updateUI() {
   document.getElementById('calDinner').innerText = mealCals.dinner + ' kcal';
   document.getElementById('calExtra').innerText = mealCals.extra + ' kcal';
   
-  const target = appState.profile ? appState.profile.targetCalories : 1800;
+  const target = getDailyTargetCalories(dateStr);
   const remaining = target - eaten;
   
   document.getElementById('caloriesEatenVal').innerText = eaten;
@@ -902,26 +1028,228 @@ function renderRecipePage() {
   container.innerHTML = '';
   
   if (!appState.profile) {
-    container.innerHTML = `<div style="grid-column: 1/-1; text-align:center; color:var(--text-muted); padding:40px;">请先在个人中心设置身高和体重，以生成为您量身定制的水油焖菜食谱。</div>`;
+    container.innerHTML = `<div style="grid-column: 1/-1; text-align:center; color:var(--text-muted); padding:40px;">请先在个人中心设置身高和体重，以生成为您量身定制的食谱。</div>`;
     return;
   }
   
   const record = getOrCreateTodayRecord();
   const recipe = record.recipe;
   
+  // 更新复选框状态，防止外部状态未同步
+  document.getElementById('recipeCheckBreakfast').checked = !!record.checkedMeals.breakfast;
+  document.getElementById('recipeCheckLunch').checked = !!record.checkedMeals.lunch;
+  document.getElementById('recipeCheckDinner').checked = !!record.checkedMeals.dinner;
+
+  // 1. 渲染模式和系列信息卡
+  const recipeInfoCard = document.getElementById('recipeInfoCard');
+  if (recipeInfoCard) {
+    const pattern = appState.profile.dietPattern || 'standard';
+    const series = appState.profile.recipeSeries || 'water_oil';
+    
+    const patternNames = {
+      standard: appState.language === 'en' ? 'Standard 3-Meals' : '标准一日三餐',
+      '16_8': appState.language === 'en' ? '16+8 Intermittent Fasting' : '16+8 间歇性断食',
+      '20_4': appState.language === 'en' ? '20+4 Warrior Fasting' : '20+4 战士断食',
+      '5_2': appState.language === 'en' ? '5+2 Light Fasting' : '5+2 轻断食模式'
+    };
+    
+    const seriesNames = {
+      water_oil: appState.language === 'en' ? 'Water-Oil Braised' : '水油焖菜系列',
+      salad: appState.language === 'en' ? 'Light Salad' : '轻食沙拉系列',
+      keto: appState.language === 'en' ? 'Low-Carb Keto' : '低碳生酮系列',
+      mediterranean: appState.language === 'en' ? 'Mediterranean Diet' : '地中海膳食系列'
+    };
+    
+    const seriesDescs = {
+      water_oil: appState.language === 'en' ? 'Water-oil braising uses low oil and retains veggies\' nutrients and moisture, offering great satiety.' : '水油焖法：少油健康，保留时蔬营养与水分，饱腹感强。',
+      salad: appState.language === 'en' ? 'Salads are fresh, low-calorie, and rich in fiber and vitamins/minerals to boost metabolism.' : '轻食沙拉：清爽低卡，富含膳食纤维与维矿，促进代谢。',
+      keto: appState.language === 'en' ? 'Keto is high in protein, moderate in fats, and ultra-low in carbs to promote fat burning.' : '低碳生酮：高蛋白、适度脂肪、极低碳水，促进燃脂和生酮。',
+      mediterranean: appState.language === 'en' ? 'Mediterranean diet features unsaturated fats, whole grains, sea fish, and beans to protect heart health.' : '地中海膳食：富含不饱和脂肪（橄榄油）、全谷物、深海鱼与豆类，护心益寿。'
+    };
+    
+    recipeInfoCard.innerHTML = `
+      <div style="font-size:14px; font-weight:600; color:var(--text-main); display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+        <span>🔄 ${appState.language === 'en' ? 'Current Mode' : '当前减重模式'}: <span style="color:var(--primary)">${patternNames[pattern]}</span></span>
+        <span>🥗 ${appState.language === 'en' ? 'Recipe Series' : '当前食谱系列'}: <span style="color:var(--accent-blue)">${seriesNames[series]}</span></span>
+      </div>
+      <div style="font-size:12px; color:var(--text-muted); line-height:1.4; border-left: 3px solid var(--accent-blue); padding-left: 8px; margin-top: 4px;">
+        ${seriesDescs[series]}
+      </div>
+    `;
+  }
+
+  // 2. 渲染断食时间窗口/进度
+  const fastingCard = document.getElementById('fastingWindowCard');
+  if (fastingCard) {
+    const pattern = appState.profile.dietPattern || 'standard';
+    if (pattern === '16_8' || pattern === '20_4') {
+      fastingCard.style.display = 'block';
+      const startHour = appState.profile.fastingStartHour || 12;
+      const duration = pattern === '16_8' ? 8 : 4;
+      const endHour = (startHour + duration) % 24;
+      
+      const formatHour = h => `${String(h).padStart(2, '0')}:00`;
+      const eatingStr = `${formatHour(startHour)} - ${formatHour(endHour)}`;
+      
+      let segmentsHtml = '';
+      for (let i = 0; i < 24; i++) {
+        let isEating = false;
+        if (startHour <= endHour) {
+          isEating = i >= startHour && i < endHour;
+        } else {
+          isEating = i >= startHour || i < endHour;
+        }
+        
+        const titleStr = `${formatHour(i)}`;
+        const bg = isEating ? 'var(--primary)' : 'rgba(255, 255, 255, 0.05)';
+        const border = isEating ? 'none' : '1px solid rgba(255, 255, 255, 0.02)';
+        segmentsHtml += `<div title="${titleStr}" style="flex:1; height:12px; background:${bg}; border:${border}; border-radius:3px;"></div>`;
+      }
+      
+      fastingCard.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="font-size:14px; font-weight:600; color:var(--text-main); display:flex; align-items:center; gap:6px;">
+            ⏱️ ${appState.language === 'en' ? 'Fasting Window Plan' : '断食与进食时间窗口'}
+          </span>
+          <span class="badge" style="background:rgba(59, 130, 246, 0.15); color:var(--accent-blue); font-size:12px; font-weight:600; padding:3px 8px; border-radius:20px;">
+            ${pattern === '16_8' ? '16:8' : '20:4'}
+          </span>
+        </div>
+        <div style="font-size:13px; color:var(--text-muted); margin-bottom:12px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+          <span>🟢 ${appState.language === 'en' ? 'Eating Window' : '进食窗口'} (${duration}h): <strong>${eatingStr}</strong></span>
+          <span>🔴 ${appState.language === 'en' ? 'Fasting Window' : '断食窗口'} (${24 - duration}h): <strong>${formatHour(endHour)} - ${formatHour(startHour)}</strong></span>
+        </div>
+        <div style="display:flex; gap:3px; margin-bottom:8px;">
+          ${segmentsHtml}
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--text-muted);">
+          <span>00:00</span>
+          <span>06:00</span>
+          <span>12:00</span>
+          <span>18:00</span>
+          <span>24:00</span>
+        </div>
+      `;
+    } else if (pattern === '5_2') {
+      fastingCard.style.display = 'block';
+      const dateObj = new Date(appState.currentDate + 'T00:00:00');
+      const dayOfWeek = String(dateObj.getDay());
+      const fastingDays = appState.profile.fastingDays || [];
+      const isFastingToday = fastingDays.includes(dayOfWeek);
+      
+      const daysNameZh = { '1': '周一', '2': '周二', '3': '周三', '4': '周四', '5': '周五', '6': '周六', '0': '周日' };
+      const daysNameEn = { '1': 'Mon', '2': 'Tue', '3': 'Wed', '4': 'Thu', '5': 'Fri', '6': 'Sat', '0': 'Sun' };
+      const fastingDaysStr = fastingDays.map(d => appState.language === 'en' ? daysNameEn[d] : daysNameZh[d]).join(', ');
+      
+      if (isFastingToday) {
+        fastingCard.style.background = 'linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(245, 158, 11, 0.1))';
+        fastingCard.style.borderColor = 'rgba(239, 68, 68, 0.25)';
+        fastingCard.innerHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <span style="font-size:14px; font-weight:600; color:var(--warning); display:flex; align-items:center; gap:6px;">
+              ⚠️ ${appState.language === 'en' ? 'Today is a Light Fasting Day!' : '今日为 5:2 轻断食日！'}
+            </span>
+          </div>
+          <div style="font-size:13px; color:var(--text-main); line-height:1.4;">
+            ${appState.language === 'en' 
+              ? `Today your calorie budget is limited to <strong>${appState.profile.gender === 'female' ? 500 : 600} kcal</strong>. The recipes have been adjusted to ultra-low calorie meals to help you cleanse and burn fat.` 
+              : `今日您的摄入上限已自动调整为 <strong>${appState.profile.gender === 'female' ? 500 : 600} 大卡</strong>。食谱也已同步调整为极低卡轻餐，以达到断食排毒、燃脂效果。`}
+          </div>
+          <div style="font-size:11px; color:var(--text-muted); margin-top:8px;">
+            ${appState.language === 'en' ? 'Weekly fasting schedule' : '每周断食设置'}: ${fastingDaysStr}
+          </div>
+        `;
+      } else {
+        fastingCard.style.background = 'linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(59, 130, 246, 0.08))';
+        fastingCard.style.borderColor = 'rgba(16, 185, 129, 0.15)';
+        fastingCard.innerHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <span style="font-size:14px; font-weight:600; color:var(--primary); display:flex; align-items:center; gap:6px;">
+              🥦 ${appState.language === 'en' ? 'Today is a Regular Day' : '今日为 5:2 模式普通进食日'}
+            </span>
+          </div>
+          <div style="font-size:13px; color:var(--text-muted); line-height:1.4;">
+            ${appState.language === 'en' 
+              ? `You can eat normally within your standard target of <strong>${appState.profile.targetCalories} kcal</strong> today. Remember to stick to healthy food choices!` 
+              : `今日您可以正常进食，每日热量目标为 <strong>${appState.profile.targetCalories} 大卡</strong>。请保持健康的饮食习惯，为断食日做好准备。`}
+          </div>
+          <div style="font-size:11px; color:var(--text-muted); margin-top:8px;">
+            ${appState.language === 'en' ? 'Weekly fasting schedule' : '每周断食设置'}: ${fastingDaysStr}
+          </div>
+        `;
+      }
+    } else {
+      fastingCard.style.display = 'none';
+    }
+  }
+
+  // 3. 渲染警告卡片 (针对跳餐、单餐比例过高)
+  const warningCard = document.getElementById('recipeWarningCard');
+  const checkedCount = Object.values(record.checkedMeals).filter(Boolean).length;
+  
+  if (checkedCount === 1) {
+    warningCard.style.display = 'block';
+    warningCard.className = 'alert-card warning-alert';
+    warningCard.style.background = '';
+    warningCard.style.border = '';
+    warningCard.style.color = '';
+    warningCard.querySelector('#recipeWarningContent').innerHTML = appState.language === 'en'
+      ? `<strong>Notice</strong>: You have selected only one meal today. The portion size and calories for this meal are scaled up to meet your daily target (approx. 100%). Consuming a large amount of food in one sitting can strain your digestion. Consider spreading it out.`
+      : `<strong>温馨提示</strong>：您今天只选择了吃一餐。这一餐的分量和热量已按100%全天目标进行了大幅度缩放。单餐摄入热量过大可能加重肠胃负担，建议合理分配，或者采用 16+8 / 5+2 等科学断食模式。`;
+  } else if (checkedCount === 2) {
+    warningCard.style.display = 'block';
+    warningCard.className = 'alert-card';
+    warningCard.style.background = 'rgba(59, 130, 246, 0.1)';
+    warningCard.style.border = '1px solid rgba(59, 130, 246, 0.25)';
+    warningCard.style.color = 'var(--accent-blue)';
+    warningCard.querySelector('#recipeWarningContent').innerHTML = appState.language === 'en'
+      ? `<strong>Info</strong>: You skipped one meal today. The portions and calories of the remaining two meals have been scaled up proportionally (re-budgeted to 100% of target) to ensure you meet your daily goal.`
+      : `<strong>膳食提示</strong>：您今天选择跳过了一餐，其余两餐的食材分量与卡路里已自动等比例上调（重分配至全天100%预算），以保证您今天摄入足够的热量以维持健康代谢。`;
+  } else {
+    warningCard.style.display = 'none';
+  }
+
   if (!recipe || Object.keys(recipe).length === 0) return;
   
   const mealsKey = ['breakfast', 'lunch', 'dinner'];
-  const mealsTitle = { breakfast: '🌅 能量早餐', lunch: '☀️ 减脂午餐 (推荐水油焖)', dinner: '🌙 轻盈晚餐 (推荐水油焖)' };
+  const mealsTitle = {
+    breakfast: appState.language === 'en' ? '🌅 Energy Breakfast' : '🌅 能量早餐',
+    lunch: appState.language === 'en' ? '☀️ Shredding Lunch' : '☀️ 减脂午餐',
+    dinner: appState.language === 'en' ? '🌙 Light Dinner' : '🌙 轻盈晚餐'
+  };
   
   mealsKey.forEach(key => {
     const meal = recipe[key];
+    
+    if (!meal) {
+      // 渲染被跳过的/断食的卡片
+      const card = document.createElement('div');
+      card.className = 'card recipe-card skipped';
+      card.style.opacity = '0.5';
+      card.style.borderStyle = 'dashed';
+      card.innerHTML = `
+        <div class="recipe-header">
+          <span class="recipe-meal-name" style="color:var(--text-muted);">${mealsTitle[key]}</span>
+          <span class="recipe-calories" style="color:var(--text-muted);">${appState.language === 'en' ? 'Skipped' : '已跳过 / 断食中'}</span>
+        </div>
+        <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; color:var(--text-muted); text-align:center;">
+          <span style="font-size:32px; margin-bottom:8px;">⏳</span>
+          <p style="font-size:12px; line-height:1.4;">
+            ${appState.language === 'en' 
+              ? 'This meal is excluded from your today\'s plan. Its calories have been dynamically distributed to other meals.' 
+              : '该餐次已从今日计划中排除。其热量已被动态分配至今日的其他餐次中。'}
+          </p>
+        </div>
+      `;
+      container.appendChild(card);
+      return;
+    }
     
     let ingredientsHtml = '';
     meal.items.forEach(ing => {
       ingredientsHtml += `
         <li class="recipe-ingredient">
-          <span>${ing.name}</span>
+          <span>${t(ing.name)}</span>
           <span>${ing.weight}g (${ing.calories} kcal)</span>
         </li>
       `;
@@ -938,14 +1266,15 @@ function renderRecipePage() {
         ${ingredientsHtml}
       </ul>
       <div class="recipe-steps">
-        <strong>💡 制作指南：</strong><br>
-        ${meal.steps}
+        <strong>💡 ${appState.language === 'en' ? 'Instructions:' : '制作指南：'}</strong><br>
+        ${t(meal.steps)}
       </div>
     `;
     container.appendChild(card);
   });
   
-  document.getElementById('recipeTargetCaloriesLabel').innerText = appState.profile.targetCalories;
+  const targetCals = getDailyTargetCalories(appState.currentDate);
+  document.getElementById('recipeTargetCaloriesLabel').innerText = targetCals;
   document.getElementById('recipeActualCaloriesLabel').innerText = recipe.totalCalories;
 }
 
@@ -1447,6 +1776,26 @@ function openModal(modalId) {
     document.getElementById('pAge').value = appState.profile.age;
     document.getElementById('pGender').value = appState.profile.gender;
     document.getElementById('pActivity').value = appState.profile.activityLevel;
+    
+    // 回填减重模式与食谱系列
+    const dietPattern = appState.profile.dietPattern || 'standard';
+    const recipeSeries = appState.profile.recipeSeries || 'water_oil';
+    const fastingStartHour = appState.profile.fastingStartHour || 12;
+    const fastingDays = appState.profile.fastingDays || [];
+    
+    document.getElementById('pDietPattern').value = dietPattern;
+    document.getElementById('pRecipeSeries').value = recipeSeries;
+    document.getElementById('pFastingStartHour').value = fastingStartHour;
+    
+    // 勾选轻断食日
+    const checkboxes = document.querySelectorAll('input[name="fastingDays"]');
+    checkboxes.forEach(cb => {
+      cb.checked = fastingDays.includes(cb.value);
+    });
+    
+    // 触发减肥模式的change事件更新显示
+    const patternEvent = new Event('change', { bubbles: true });
+    document.getElementById('pDietPattern').dispatchEvent(patternEvent);
     
     // Backwards compatibility migration
     if (!appState.profile.aiProvider) {
@@ -2217,6 +2566,58 @@ async function executeAiConnectionTest() {
 
 // 食谱、食材与补餐建议翻译词表
 const recipeTranslations = {
+  // Salad Breakfast
+  '奇异果坚果酸奶沙拉': 'Kiwi Fruit & Nut Yogurt Salad',
+  '奇异果': 'Kiwi Fruit',
+  '奇亚籽': 'Chia Seeds',
+  '奇异果切片，放入酸奶中，撒上奇亚籽与杏仁碎即可。': 'Slice kiwi fruit, place in yogurt, sprinkle with chia seeds and almond bits.',
+  // Salad Lunch
+  '彩虹鸡丝牛油果温沙拉': 'Rainbow Shredded Chicken Avocado Warm Salad',
+  '鸡胸肉丝': 'Shredded Chicken Breast',
+  '牛油果': 'Avocado',
+  '沙拉汁/油醋汁': 'Salad Dressing/Vinaigrette',
+  '【沙拉做法】：鸡丝开水焯熟捞出。生菜铺底，放上小番茄、切块牛油果与鸡丝，淋少许轻卡油醋汁拌匀。': '【Salad Method】: Blanch shredded chicken in boiling water. Lay lettuce, place cherry tomatoes, avocado chunks and chicken, drizzle light vinaigrette and toss.',
+  // Salad Dinner
+  '烟熏三文鱼藜麦轻沙拉': 'Smoked Salmon Quinoa Light Salad',
+  '烟熏三文鱼': 'Smoked Salmon',
+  '熟藜麦': 'Cooked Quinoa',
+  '黄瓜片': 'Cucumber Slices',
+  '熟藜麦与菠菜叶、黄瓜片混合，铺上烟熏三文鱼，可挤少许柠檬汁调味。': 'Mix cooked quinoa, spinach leaves, and cucumber slices, top with smoked salmon, squeeze a bit of lemon juice to season.',
+  
+  // Keto Breakfast
+  '美式培根反转蛋烧': 'American Bacon Egg Roll',
+  '培根': 'Bacon',
+  '车达芝士': 'Cheddar Cheese',
+  '培根煎熟切碎，与蛋液、菠菜叶混合倒入锅中做成厚蛋烧，出锅前撒上车达芝士碎。': 'Fry bacon and chop. Mix with eggs and spinach, cook in pan as egg roll, sprinkle cheddar cheese before serving.',
+  // Keto Lunch
+  '生酮黄油煎牛排配西冷': 'Keto Sirloin Steak with Butter',
+  '西冷牛排': 'Sirloin Steak',
+  '黄油': 'Butter',
+  '芦笋': 'Asparagus',
+  '【煎牛排】：牛排煎锅烧热下黄油，西冷牛排每面煎2-3分钟。加入芦笋与香菇丁同煎，黑胡椒和少许盐调味。': '【Steak Cooking】: Heat butter in a steak pan, sear sirloin steak 2-3 mins per side. Toss in asparagus and diced mushrooms, season with black pepper and salt.',
+  // Keto Dinner
+  '芝士焗香草鸡腿排': 'Baked Cheese Herb Chicken Thigh',
+  '去皮鸡腿排': 'Skinless Chicken Thigh',
+  '马苏里拉芝士': 'Mozzarella Cheese',
+  '混合香草': 'Mixed Herbs',
+  '【烤箱做法】：鸡腿排涂抹橄榄油和香草碎，烤箱200度烤20分钟，最后5分钟铺上马苏里拉芝士焗至焦黄。搭配铺水西兰花。': '【Oven Method】: Coat chicken thigh with olive oil and mixed herbs, bake at 200°C for 20 minutes, lay mozzarella on top in last 5 minutes until golden brown. Serve with blanched broccoli.',
+
+  // Mediterranean Breakfast
+  '地中海鹰嘴豆蛋饼': 'Mediterranean Chickpea Omelette',
+  '熟鹰嘴豆': 'Cooked Chickpeas',
+  '菲达干酪': 'Feta Cheese',
+  '菲达干酪、鹰嘴豆与蛋液、菠菜液搅匀，倒入平底锅双面慢火烘熟。': 'Stir feta cheese, chickpeas, egg liquid and spinach, pour into flat pan, cook slowly on both sides.',
+  // Mediterranean Lunch
+  '橄榄油青酱虾仁意面': 'Olive Oil Basil Pesto Shrimp Pasta',
+  '全麦意面': 'Whole Wheat Pasta',
+  '罗勒青酱': 'Basil Pesto',
+  '【面食做法】：全麦意面煮熟捞出。锅中热橄榄油，下虾仁炒熟，倒入意面和罗勒青酱翻炒均匀。': '【Pasta Cooking】: Boil whole wheat pasta. Heat olive oil in a pan, cook shrimp, add pasta and basil pesto, stir-fry until combined.',
+  // Mediterranean Dinner
+  '香煎鳕鱼配番茄橄榄': 'Pan-Seared Cod with Tomatoes & Olives',
+  '鳕鱼排': 'Cod Fillet',
+  '黑橄榄': 'Black Olives',
+  '【煎鳕鱼】：平底锅热橄榄油，鳕鱼排两面各煎3分钟。起锅前加入番茄块和黑橄榄丁稍微翻炒，用盐和黑胡椒调味。': '【Cod Cooking】: Heat olive oil in a flat pan, sear cod fillet 3 mins each side. Add tomato chunks and diced black olives right before cooking finishes, sauté and season with salt and black pepper.',
+
   // Breakfasts
   '高纤燕麦蛋羹餐': 'High-Fiber Oatmeal Egg Custard',
   '燕麦片': 'Oatmeal',
@@ -2929,4 +3330,71 @@ function applyLanguage() {
   if (testCloseBtn) testCloseBtn.innerText = dict.testBtnClose;
   const retestAiBtn = document.getElementById('retestAiBtn');
   if (retestAiBtn) retestAiBtn.innerText = dict.testBtnRetest;
+
+  // 12. 新增的减肥模式与食谱系列翻译回填
+  const pDietPatternLabel = document.querySelector('label[for="pDietPattern"]');
+  if (pDietPatternLabel) pDietPatternLabel.innerText = lang === 'en' ? 'Weight Loss Pattern*' : '减重模式 (Fasting Pattern)*';
+  
+  const pDietPattern = document.getElementById('pDietPattern');
+  if (pDietPattern) {
+    pDietPattern.options[0].text = lang === 'en' ? 'Standard 3-Meals' : '标准一日三餐 (Standard 3-Meals)';
+    pDietPattern.options[1].text = lang === 'en' ? '16+8 Intermittent Fasting' : '16+8 间歇性断食 (16:8 Fasting)';
+    pDietPattern.options[2].text = lang === 'en' ? '20+4 Warrior Fasting' : '20+4 战士断食 (20:4 Fasting)';
+    pDietPattern.options[3].text = lang === 'en' ? '5+2 Light Fasting' : '5+2 轻断食模式 (5:2 Fasting)';
+  }
+  
+  const pRecipeSeriesLabel = document.querySelector('label[for="pRecipeSeries"]');
+  if (pRecipeSeriesLabel) pRecipeSeriesLabel.innerText = lang === 'en' ? 'Recommended Recipe Series*' : '推荐食谱系列 (Recipe Series)*';
+  
+  const pRecipeSeries = document.getElementById('pRecipeSeries');
+  if (pRecipeSeries) {
+    pRecipeSeries.options[0].text = lang === 'en' ? 'Water-Oil Braised Series' : '水油焖菜系列 (Water-Oil)';
+    pRecipeSeries.options[1].text = lang === 'en' ? 'Light Salad Series' : '轻食沙拉系列 (Salad)';
+    pRecipeSeries.options[2].text = lang === 'en' ? 'Low-Carb Keto Series' : '低碳生酮系列 (Keto)';
+    pRecipeSeries.options[3].text = lang === 'en' ? 'Mediterranean Diet Series' : '地中海膳食系列 (MedDiet)';
+  }
+  
+  const pFastingStartHourLabel = document.querySelector('label[for="pFastingStartHour"]');
+  if (pFastingStartHourLabel) pFastingStartHourLabel.innerText = lang === 'en' ? 'Eating Window Start Hour*' : '进食窗口起始时间 (Eating Window Start)*';
+  
+  const pFastingStartHour = document.getElementById('pFastingStartHour');
+  if (pFastingStartHour) {
+    pFastingStartHour.options[0].text = lang === 'en' ? '08:00 (Early window, breakfast & lunch)' : '08:00 (进食窗较早，适合正常早餐和午餐)';
+    pFastingStartHour.options[1].text = lang === 'en' ? '12:00 (Skip breakfast, lunch & dinner)' : '12:00 (跳过早餐，适合午餐 and 晚餐)';
+    pFastingStartHour.options[2].text = lang === 'en' ? '16:00 (Late window, afternoon snack & dinner)' : '16:00 (进食窗较晚，适合下午加餐 and 晚餐)';
+  }
+  
+  const pFastingDaysLabel = document.querySelector('#pFastingDaysGroup > label');
+  if (pFastingDaysLabel) pFastingDaysLabel.innerText = lang === 'en' ? 'Select 2 Fasting Days (Select exactly 2)*' : '选择每周的 2 个轻断食日 (请选择 2 天)*';
+  
+  const fastingDaysContainer = document.querySelector('#pFastingDaysGroup div');
+  if (fastingDaysContainer) {
+    const labels = fastingDaysContainer.querySelectorAll('label');
+    const daysEn = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const daysZh = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+    labels.forEach((lbl, idx) => {
+      const cb = lbl.querySelector('input');
+      lbl.innerHTML = '';
+      lbl.appendChild(cb);
+      lbl.appendChild(document.createTextNode(' ' + (lang === 'en' ? daysEn[idx] : daysZh[idx])));
+    });
+  }
+
+  // Recipes Page checkable meals label and checkbox text
+  const recipeMealsToEatLabel = document.getElementById('recipeMealsToEatLabel');
+  if (recipeMealsToEatLabel) recipeMealsToEatLabel.innerText = lang === 'en' ? 'Select today\'s meals to budget:' : '今日计划进食餐份：';
+  
+  const recipeCheckBreakfastLabel = document.querySelector('.meal-selectors-card label:nth-of-type(1) .custom-checkbox-label');
+  if (recipeCheckBreakfastLabel) recipeCheckBreakfastLabel.innerText = lang === 'en' ? '🌅 Breakfast' : '🌅 早餐';
+  
+  const recipeCheckLunchLabel = document.querySelector('.meal-selectors-card label:nth-of-type(2) .custom-checkbox-label');
+  if (recipeCheckLunchLabel) recipeCheckLunchLabel.innerText = lang === 'en' ? '☀️ Lunch' : '☀️ 午餐';
+  
+  const recipeCheckDinnerLabel = document.querySelector('.meal-selectors-card label:nth-of-type(3) .custom-checkbox-label');
+  if (recipeCheckDinnerLabel) recipeCheckDinnerLabel.innerText = lang === 'en' ? '🌙 Dinner' : '🌙 晚餐';
+  
+  const recipeGoalText = document.getElementById('recipeGoalText');
+  if (recipeGoalText) recipeGoalText.innerText = lang === 'en' ? 'Daily Target:' : '每日目标:';
+  const recipeActualText = document.getElementById('recipeActualText');
+  if (recipeActualText) recipeActualText.innerText = lang === 'en' ? 'Current Recipes:' : '当前食谱:';
 }

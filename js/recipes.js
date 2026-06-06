@@ -1,120 +1,252 @@
-// 水油焖菜健康食谱与补充推荐逻辑
-const WATER_OIL_RECIPES = {
-  breakfast: [
-    {
-      name: '高纤燕麦蛋羹餐',
-      totalCalories: 320,
-      items: [
-        { name: '燕麦片', weight: 40, calories: 147 },
-        { name: '鸡蛋 (水煮)', weight: 50, calories: 71 },
-        { name: '脱脂牛奶', weight: 200, calories: 102 }
-      ],
-      steps: '燕麦片加水微波炉加热2分钟，搭配水煮蛋和脱脂牛奶食用。'
-    },
-    {
-      name: '牛油果全麦吐司蛋',
-      totalCalories: 350,
-      items: [
-        { name: '全麦吐司', weight: 70, calories: 172 },
-        { name: '鸡蛋 (无油煎)', weight: 50, calories: 73 },
-        { name: '番茄', weight: 100, calories: 19 },
-        { name: '混合坚果', weight: 15, calories: 86 }
-      ],
-      steps: '全麦面包烤热，放上煎蛋和番茄片，搭配适量坚果。'
-    },
-    {
-      name: '红薯温沙拉餐',
-      totalCalories: 310,
-      items: [
-        { name: '蒸红薯', weight: 150, calories: 129 },
-        { name: '鸡蛋 (水煮)', weight: 50, calories: 71 },
-        { name: '无糖酸奶', weight: 150, calories: 105 },
-        { name: '小番茄', weight: 50, calories: 10 }
-      ],
-      steps: '红薯切块蒸熟，搭配水煮蛋与酸奶，点缀小番茄。'
-    }
-  ],
-  
-  lunch: [
-    {
-      name: '水油焖西兰花鸡胸肉饭',
-      totalCalories: 550,
-      items: [
-        { name: '鸡胸肉', weight: 120, calories: 160 },
-        { name: '西兰花', weight: 150, calories: 51 },
-        { name: '胡萝卜', weight: 50, calories: 18 },
-        { name: '橄榄油', weight: 5, calories: 44 },
-        { name: '糙米饭', weight: 150, calories: 166 }
-      ],
-      steps: '【水油焖法】：平底锅放入50ml水、5ml橄榄油、鸡胸肉丁与西兰花、胡萝卜片。盖上锅盖，中火焖煮3-4分钟至熟，开盖用适量蚝油、蒜蓉、少许盐调味收汁。配糙米饭食用。'
-    },
-    {
-      name: '水油焖牛肉片鲜菇豆腐饭',
-      totalCalories: 580,
-      items: [
-        { name: '瘦牛肉片', weight: 100, calories: 125 },
-        { name: '豆腐', weight: 120, calories: 98 },
-        { name: '菌菇 (香菇/金针菇)', weight: 100, calories: 25 },
-        { name: '娃娃菜', weight: 150, calories: 25 },
-        { name: '橄榄油', weight: 5, calories: 44 },
-        { name: '紫薯', weight: 150, calories: 159 }
-      ],
-      steps: '【水油焖法】：锅中加入少量水和5ml油，铺上菌菇和豆腐。烧开后下牛肉片和娃娃菜，盖盖焖煮3分钟。牛肉变色熟透后，加少许生抽、黑胡椒调味。搭配蒸紫薯。'
-    },
-    {
-      name: '水油焖鲜虾菌菇魔芋丝饭',
-      totalCalories: 520,
-      items: [
-        { name: '基围虾仁', weight: 100, calories: 93 },
-        { name: '菌菇 (杏鲍菇)', weight: 100, calories: 25 },
-        { name: '生菜', weight: 150, calories: 22 },
-        { name: '橄榄油', weight: 5, calories: 44 },
-        { name: '白米饭', weight: 150, calories: 174 },
-        { name: '鸡蛋', weight: 50, calories: 71 }
-      ],
-      steps: '【水油焖法】：锅内倒少许水和5ml油，先焖杏鲍菇和虾仁2分钟，再加入生菜盖盖焖30秒。起锅前打入蛋液或直接用蒜泥生抽调味。配白米饭。'
-    }
-  ],
-  
-  dinner: [
-    {
-      name: '水油焖虾仁娃娃菜轻食',
-      totalCalories: 380,
-      items: [
-        { name: '基围虾仁', weight: 80, calories: 74 },
-        { name: '娃娃菜', weight: 200, calories: 34 },
-        { name: '木耳', weight: 50, calories: 13 },
-        { name: '橄榄油', weight: 3, calories: 26 },
-        { name: '玉米', weight: 150, calories: 168 }
-      ],
-      steps: '【水油焖法】：锅中放入少许水、3ml油，铺上娃娃菜和黑木耳，上面码放虾仁。盖盖焖煮3分钟，调入少许盐和白胡椒粉。搭配水煮玉米半根。'
-    },
-    {
-      name: '水油焖豆腐龙利鱼温沙拉',
-      totalCalories: 400,
-      items: [
-        { name: '龙利鱼/鳕鱼', weight: 120, calories: 126 },
-        { name: '豆腐', weight: 100, calories: 82 },
-        { name: '西兰花', weight: 100, calories: 34 },
-        { name: '橄榄油', weight: 3, calories: 26 },
-        { name: '蒸红薯', weight: 100, calories: 86 }
-      ],
-      steps: '【水油焖法】：鳕鱼块与豆腐下锅，倒入30ml水和3ml油，盖盖焖煮3分钟，再加入西兰花焖1分钟。用蒸鱼豉油调味。搭配蒸红薯。'
-    },
-    {
-      name: '水油焖时蔬牛肉丝轻食',
-      totalCalories: 420,
-      items: [
-        { name: '瘦牛肉丝', weight: 80, calories: 100 },
-        { name: '油麦菜/生菜', weight: 200, calories: 30 },
-        { name: '香菇', weight: 50, calories: 13 },
-        { name: '橄榄油', weight: 4, calories: 35 },
-        { name: '糙米饭', weight: 100, calories: 111 }
-      ],
-      steps: '【水油焖法】：牛肉丝先用生抽淀粉抓匀。锅内下50ml水、4ml油，先焖香菇和牛肉丝2分钟，下绿叶菜焖30秒，起锅撒黑胡椒。搭配糙米饭。'
-    }
-  ]
+// 水油焖菜、轻食沙拉、生酮、地中海健康食谱与补充推荐逻辑
+const RECIPE_SERIES_DB = {
+  water_oil: {
+    breakfast: [
+      {
+        name: '高纤燕麦蛋羹餐',
+        totalCalories: 320,
+        items: [
+          { name: '燕麦片', weight: 40, calories: 147 },
+          { name: '鸡蛋 (水煮)', weight: 50, calories: 71 },
+          { name: '脱脂牛奶', weight: 200, calories: 102 }
+        ],
+        steps: '燕麦片加水微波炉加热2分钟，搭配水煮蛋和脱脂牛奶食用。'
+      },
+      {
+        name: '牛油果全麦吐司蛋',
+        totalCalories: 350,
+        items: [
+          { name: '全麦吐司', weight: 70, calories: 172 },
+          { name: '鸡蛋 (无油煎)', weight: 50, calories: 73 },
+          { name: '番茄', weight: 100, calories: 19 },
+          { name: '混合坚果', weight: 15, calories: 86 }
+        ],
+        steps: '全麦面包烤热，放上煎蛋和番茄片，搭配适量坚果。'
+      },
+      {
+        name: '红薯温沙拉餐',
+        totalCalories: 310,
+        items: [
+          { name: '蒸红薯', weight: 150, calories: 129 },
+          { name: '鸡蛋 (水煮)', weight: 50, calories: 71 },
+          { name: '无糖酸奶', weight: 150, calories: 105 },
+          { name: '小番茄', weight: 50, calories: 10 }
+        ],
+        steps: '红薯切块蒸熟，搭配水煮蛋与酸奶，点缀小番茄。'
+      }
+    ],
+    lunch: [
+      {
+        name: '水油焖西兰花鸡胸肉饭',
+        totalCalories: 550,
+        items: [
+          { name: '鸡胸肉', weight: 120, calories: 160 },
+          { name: '西兰花', weight: 150, calories: 51 },
+          { name: '胡萝卜', weight: 50, calories: 18 },
+          { name: '橄榄油', weight: 5, calories: 44 },
+          { name: '糙米饭', weight: 150, calories: 166 }
+        ],
+        steps: '【水油焖法】：平底锅放入50ml水、5ml橄榄油、鸡胸肉丁与西兰花、胡萝卜片。盖上锅盖，中火焖煮3-4分钟至熟，开盖用适量蚝油、蒜蓉、少许盐调味收汁。配糙米饭食用。'
+      },
+      {
+        name: '水油焖牛肉片鲜菇豆腐饭',
+        totalCalories: 580,
+        items: [
+          { name: '瘦牛肉片', weight: 100, calories: 125 },
+          { name: '豆腐', weight: 120, calories: 98 },
+          { name: '菌菇 (香菇/金针菇)', weight: 100, calories: 25 },
+          { name: '娃娃菜', weight: 150, calories: 25 },
+          { name: '橄榄油', weight: 5, calories: 44 },
+          { name: '紫薯', weight: 150, calories: 159 }
+        ],
+        steps: '【水油焖法】：锅中加入少量水和5ml油，铺上菌菇和豆腐。烧开后下牛肉片和娃娃菜，盖盖焖煮3分钟。牛肉变色熟透后，加少许生抽、黑胡椒调味。搭配蒸紫薯。'
+      },
+      {
+        name: '水油焖鲜虾菌菇魔芋丝饭',
+        totalCalories: 520,
+        items: [
+          { name: '基围虾仁', weight: 100, calories: 93 },
+          { name: '菌菇 (杏鲍菇)', weight: 100, calories: 25 },
+          { name: '生菜', weight: 150, calories: 22 },
+          { name: '橄榄油', weight: 5, calories: 44 },
+          { name: '白米饭', weight: 150, calories: 174 },
+          { name: '鸡蛋', weight: 50, calories: 71 }
+        ],
+        steps: '【水油焖法】：锅内倒少许水和5ml油，先焖杏鲍菇和虾仁2分钟，再加入生菜盖盖焖30秒。起锅前打入蛋液或直接用蒜泥生抽调味。配白米饭。'
+      }
+    ],
+    dinner: [
+      {
+        name: '水油焖虾仁娃娃菜轻食',
+        totalCalories: 380,
+        items: [
+          { name: '基围虾仁', weight: 80, calories: 74 },
+          { name: '娃娃菜', weight: 200, calories: 34 },
+          { name: '木耳', weight: 50, calories: 13 },
+          { name: '橄榄油', weight: 3, calories: 26 },
+          { name: '玉米', weight: 150, calories: 168 }
+        ],
+        steps: '【水油焖法】：锅中放入少许水、3ml油，铺上娃娃菜和黑木耳，上面码放虾仁。盖盖焖煮3分钟，调入少许盐和白胡椒粉。搭配水煮玉米半根。'
+      },
+      {
+        name: '水油焖豆腐龙利鱼温沙拉',
+        totalCalories: 400,
+        items: [
+          { name: '龙利鱼/鳕鱼', weight: 120, calories: 126 },
+          { name: '豆腐', weight: 100, calories: 82 },
+          { name: '西兰花', weight: 100, calories: 34 },
+          { name: '橄榄油', weight: 3, calories: 26 },
+          { name: '蒸红薯', weight: 100, calories: 86 }
+        ],
+        steps: '【水油焖法】：鳕鱼块与豆腐下锅，倒入30ml水和3ml油，盖盖焖煮3分钟，再加入西兰花焖1分钟。用蒸鱼豉油调味。搭配蒸红薯。'
+      },
+      {
+        name: '水油焖时蔬牛肉丝轻食',
+        totalCalories: 420,
+        items: [
+          { name: '瘦牛肉丝', weight: 80, calories: 100 },
+          { name: '油麦菜/生菜', weight: 200, calories: 30 },
+          { name: '香菇', weight: 50, calories: 13 },
+          { name: '橄榄油', weight: 4, calories: 35 },
+          { name: '糙米饭', weight: 100, calories: 111 }
+        ],
+        steps: '【水油焖法】：牛肉丝先用生抽淀粉抓匀。锅内下50ml水、4ml油，先焖香菇和牛肉丝2分钟，下绿叶菜焖30秒，起锅撒黑胡椒。搭配糙米饭。'
+      }
+    ]
+  },
+  salad: {
+    breakfast: [
+      {
+        name: '奇异果坚果酸奶沙拉',
+        totalCalories: 300,
+        items: [
+          { name: '奇异果', weight: 120, calories: 73 },
+          { name: '无糖酸奶', weight: 200, calories: 140 },
+          { name: '奇亚籽', weight: 10, calories: 49 },
+          { name: '混合坚果', weight: 8, calories: 38 }
+        ],
+        steps: '奇异果切片，放入酸奶中，撒上奇亚籽与杏仁碎即可。'
+      }
+    ],
+    lunch: [
+      {
+        name: '彩虹鸡丝牛油果温沙拉',
+        totalCalories: 500,
+        items: [
+          { name: '鸡胸肉丝', weight: 120, calories: 160 },
+          { name: '牛油果', weight: 80, calories: 128 },
+          { name: '小番茄', weight: 100, calories: 20 },
+          { name: '生菜叶', weight: 150, calories: 22 },
+          { name: '沙拉汁/油醋汁', weight: 15, calories: 45 },
+          { name: '糙米饭', weight: 110, calories: 125 }
+        ],
+        steps: '【沙拉做法】：鸡丝开水焯熟捞出。生菜铺底，放上小番茄、切块牛油果与鸡丝，淋少许轻卡油醋汁拌匀。'
+      }
+    ],
+    dinner: [
+      {
+        name: '烟熏三文鱼藜麦轻沙拉',
+        totalCalories: 400,
+        items: [
+          { name: '烟熏三文鱼', weight: 80, calories: 115 },
+          { name: '熟藜麦', weight: 100, calories: 120 },
+          { name: '黄瓜片', weight: 150, calories: 24 },
+          { name: '菠菜叶', weight: 100, calories: 22 },
+          { name: '橄榄油', weight: 5, calories: 44 }
+        ],
+        steps: '熟藜麦与菠菜叶、黄瓜片混合，铺上烟熏三文鱼，可挤少许柠檬汁调味。'
+      }
+    ]
+  },
+  keto: {
+    breakfast: [
+      {
+        name: '美式培根反转蛋烧',
+        totalCalories: 360,
+        items: [
+          { name: '培根', weight: 40, calories: 180 },
+          { name: '鸡蛋', weight: 100, calories: 143 },
+          { name: '菠菜叶', weight: 50, calories: 11 },
+          { name: '车达芝士', weight: 10, calories: 40 }
+        ],
+        steps: '培根煎熟切碎，与蛋液、菠菜叶混合倒入锅中做成厚蛋烧，出锅前撒上车达芝士碎。'
+      }
+    ],
+    lunch: [
+      {
+        name: '生酮黄油煎牛排配西冷',
+        totalCalories: 620,
+        items: [
+          { name: '西冷牛排', weight: 150, calories: 375 },
+          { name: '黄油', weight: 15, calories: 107 },
+          { name: '芦笋', weight: 100, calories: 20 },
+          { name: '香菇', weight: 80, calories: 20 },
+          { name: '橄榄油', weight: 5, calories: 44 }
+        ],
+        steps: '【煎牛排】：牛排煎锅烧热下黄油，西冷牛排每面煎2-3分钟。加入芦笋与香菇丁同煎，黑胡椒和少许盐调味。'
+      }
+    ],
+    dinner: [
+      {
+        name: '芝士焗香草鸡腿排',
+        totalCalories: 450,
+        items: [
+          { name: '去皮鸡腿排', weight: 150, calories: 181 },
+          { name: '马苏里拉芝士', weight: 30, calories: 96 },
+          { name: '西兰花', weight: 120, calories: 40 },
+          { name: '橄榄油', weight: 5, calories: 44 },
+          { name: '混合香草', weight: 5, calories: 0 }
+        ],
+        steps: '【烤箱做法】：鸡腿排涂抹橄榄油和香草碎，烤箱200度烤20分钟，最后5分钟铺上马苏里拉芝士焗至焦黄。搭配焯水西兰花。'
+      }
+    ]
+  },
+  mediterranean: {
+    breakfast: [
+      {
+        name: '地中海鹰嘴豆蛋饼',
+        totalCalories: 320,
+        items: [
+          { name: '熟鹰嘴豆', weight: 80, calories: 131 },
+          { name: '鸡蛋', weight: 100, calories: 143 },
+          { name: '菲达干酪', weight: 10, calories: 26 },
+          { name: '菠菜叶', weight: 50, calories: 11 }
+        ],
+        steps: '菲达干酪、鹰嘴豆与蛋液、菠菜液搅匀，倒入平底锅双面慢火烘熟。'
+      }
+    ],
+    lunch: [
+      {
+        name: '橄榄油青酱虾仁意面',
+        totalCalories: 580,
+        items: [
+          { name: '全麦意面', weight: 80, calories: 278 },
+          { name: '基围虾仁', weight: 120, calories: 111 },
+          { name: '罗勒青酱', weight: 20, calories: 98 },
+          { name: '橄榄油', weight: 10, calories: 89 }
+        ],
+        steps: '【面食做法】：全麦意面煮熟捞出。锅中热橄榄油，下虾仁炒熟，倒入意面和罗勒青酱翻炒均匀。'
+      }
+    ],
+    dinner: [
+      {
+        name: '香煎鳕鱼配番茄橄榄',
+        totalCalories: 400,
+        items: [
+          { name: '鳕鱼排', weight: 150, calories: 135 },
+          { name: '黑橄榄', weight: 20, calories: 23 },
+          { name: '小番茄', weight: 100, calories: 20 },
+          { name: '黄瓜', weight: 150, calories: 24 },
+          { name: '橄榄油', weight: 10, calories: 89 }
+        ],
+        steps: '【煎鳕鱼】：平底锅热橄榄油，鳕鱼排两面各煎3分钟。起锅前加入番茄块和黑橄榄丁稍微翻炒，用盐和黑胡椒调味。'
+      }
+    ]
+  }
 };
+
+// 保持老命名兼容
+const WATER_OIL_RECIPES = RECIPE_SERIES_DB.water_oil;
 
 // 补餐备选库 (食物名, 单份克重, 单份热量)
 const SNACK_RECOMMENDATIONS = [
@@ -203,29 +335,48 @@ function calculateTargetCalories(currentWeight, targetWeight, durationMonths, bm
 /**
  * 根据每日热量目标，动态调整推荐食谱中食材的克重，使其卡路里总和与目标契合
  * @param {number} dailyTargetCalories - 每日目标卡路里
+ * @param {string} series - 食谱系列 ('water_oil' | 'salad' | 'keto' | 'mediterranean')
+ * @param {object} checkedMeals - { breakfast: true, lunch: true, dinner: true }
  * @returns {object} 包含三餐调整后的推荐食谱
  */
-function generateDailyRecipes(dailyTargetCalories) {
-  // 推荐三餐比例：早餐 30%，午餐 40%，晚餐 30%
-  const breakfastTarget = dailyTargetCalories * 0.30;
-  const lunchTarget = dailyTargetCalories * 0.40;
-  const dinnerTarget = dailyTargetCalories * 0.30;
+function generateDailyRecipes(dailyTargetCalories, series = 'water_oil', checkedMeals = { breakfast: true, lunch: true, dinner: true }) {
+  const db = RECIPE_SERIES_DB[series] || RECIPE_SERIES_DB.water_oil;
   
-  // 随机挑选一套食谱模板
-  const selectRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  // 推荐三餐默认比例：早餐 30%，午餐 40%，晚餐 30%
+  const defaultRatios = { breakfast: 0.30, lunch: 0.40, dinner: 0.30 };
+  let ratioSum = 0;
   
-  const bTemplate = JSON.parse(JSON.stringify(selectRandom(WATER_OIL_RECIPES.breakfast)));
-  const lTemplate = JSON.parse(JSON.stringify(selectRandom(WATER_OIL_RECIPES.lunch)));
-  const dTemplate = JSON.parse(JSON.stringify(selectRandom(WATER_OIL_RECIPES.dinner)));
+  Object.keys(checkedMeals).forEach(meal => {
+    if (checkedMeals[meal]) {
+      ratioSum += defaultRatios[meal];
+    }
+  });
   
-  // 比例调整因子函数
+  // 如果没有任何餐被勾选，默认勾选全部以防崩溃
+  let activeMeals = { ...checkedMeals };
+  let activeSum = ratioSum;
+  if (ratioSum === 0) {
+    activeMeals = { breakfast: true, lunch: true, dinner: true };
+    activeSum = 1.0;
+  }
+  
+  const selectRandom = (arr) => {
+    if (!arr || arr.length === 0) return null;
+    return arr[Math.floor(Math.random() * arr.length)];
+  };
+  
+  const result = {
+    totalCalories: 0
+  };
+  
   const scaleRecipe = (recipe, targetKcal) => {
+    if (!recipe) return null;
     const originalCalories = recipe.totalCalories;
     const factor = targetKcal / originalCalories;
     
     let currentSum = 0;
-    recipe.items.forEach((item, idx) => {
-      // 调整克重与卡路里
+    recipe.items.forEach(item => {
+      // 比例缩放食材重量和大卡
       item.weight = Math.round(item.weight * factor);
       item.calories = Math.round(item.calories * factor);
       currentSum += item.calories;
@@ -234,12 +385,21 @@ function generateDailyRecipes(dailyTargetCalories) {
     return recipe;
   };
   
-  return {
-    breakfast: scaleRecipe(bTemplate, breakfastTarget),
-    lunch: scaleRecipe(lTemplate, lunchTarget),
-    dinner: scaleRecipe(dTemplate, dinnerTarget),
-    totalCalories: bTemplate.totalCalories + lTemplate.totalCalories + dTemplate.totalCalories
-  };
+  ['breakfast', 'lunch', 'dinner'].forEach(mealKey => {
+    if (activeMeals[mealKey]) {
+      const targetKcal = dailyTargetCalories * (defaultRatios[mealKey] / activeSum);
+      const list = db[mealKey] || RECIPE_SERIES_DB.water_oil[mealKey];
+      const template = JSON.parse(JSON.stringify(selectRandom(list)));
+      result[mealKey] = scaleRecipe(template, targetKcal);
+      if (result[mealKey]) {
+        result.totalCalories += result[mealKey].totalCalories;
+      }
+    } else {
+      result[mealKey] = null; // 标识该餐被跳过（如断食中）
+    }
+  });
+  
+  return result;
 }
 
 /**
@@ -319,6 +479,7 @@ function getSmartSnackRecommendations(remainingCalories) {
 // 导出模块 (支持浏览器 global 加载)
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    RECIPE_SERIES_DB,
     WATER_OIL_RECIPES,
     SNACK_RECOMMENDATIONS,
     calculateBMRAndTDEE,
@@ -327,6 +488,7 @@ if (typeof module !== 'undefined' && module.exports) {
     getSmartSnackRecommendations
   };
 } else {
+  window.RECIPE_SERIES_DB = RECIPE_SERIES_DB;
   window.WATER_OIL_RECIPES = WATER_OIL_RECIPES;
   window.SNACK_RECOMMENDATIONS = SNACK_RECOMMENDATIONS;
   window.calculateBMRAndTDEE = calculateBMRAndTDEE;
