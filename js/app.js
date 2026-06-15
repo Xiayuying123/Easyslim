@@ -2159,7 +2159,7 @@ function saveCommunityPosts(posts) {
   localStorage.setItem('weight_loss_community_posts', JSON.stringify(posts));
 }
 
-function renderCommunityPage() {
+function renderCommunityPageOnly() {
   const container = document.getElementById('communityFeedContainer');
   if (!container) return;
   container.innerHTML = '';
@@ -2269,6 +2269,12 @@ function renderCommunityPage() {
   });
 }
 
+function renderCommunityPage() {
+  renderCommunityPageOnly();
+  const posts = getOrCreateCommunityPosts();
+  syncCommunityWithCloud(posts);
+}
+
 function togglePostLike(postId) {
   const currentUser = appState.currentUser || 'Guest';
   const posts = getOrCreateCommunityPosts();
@@ -2283,7 +2289,8 @@ function togglePostLike(postId) {
   }
   
   saveCommunityPosts(posts);
-  renderCommunityPage();
+  renderCommunityPageOnly();
+  syncCommunityWithCloud(posts);
 }
 window.togglePostLike = togglePostLike;
 
@@ -2373,7 +2380,8 @@ function handlePublishPost(e) {
   saveCommunityPosts(posts);
   
   contentEl.value = '';
-  renderCommunityPage();
+  renderCommunityPageOnly();
+  syncCommunityWithCloud(posts);
   
   if (!navigator.onLine) {
     showToast(lang === 'en' 
@@ -2425,11 +2433,98 @@ function handlePublishPost(e) {
     
     saveCommunityPosts(updatedPosts);
     // If we're still on the community tab, re-render
-    const activeTab = document.querySelector('.nav-item.active')?.getAttribute('data-tab-target');
+    const activeTab = document.querySelector('.nav-item.active')?.getAttribute('data-tab-target') || 
+                       document.querySelector('.mobile-nav-item.active')?.getAttribute('data-tab-target');
     if (activeTab === 'community') {
-      renderCommunityPage();
+      renderCommunityPageOnly();
     }
+    syncCommunityWithCloud(updatedPosts);
   }, 1500);
+}
+
+async function syncCommunityWithCloud(localPosts = null) {
+  if (typeof puter === 'undefined' || !puter.kv) return;
+  if (!navigator.onLine) return;
+  
+  const cloudKey = 'easyslim_global_community_posts';
+  
+  try {
+    const cloudDataStr = await puter.kv.get(cloudKey);
+    let cloudPosts = [];
+    if (cloudDataStr) {
+      try {
+        cloudPosts = JSON.parse(cloudDataStr);
+      } catch (e) {
+        console.error('Failed to parse cloud community posts', e);
+      }
+    } else {
+      cloudPosts = JSON.parse(JSON.stringify(MOCK_COMMUNITY_POSTS));
+      await puter.kv.set(cloudKey, JSON.stringify(cloudPosts));
+    }
+    
+    if (!localPosts) {
+      const saved = localStorage.getItem('weight_loss_community_posts');
+      localPosts = saved ? JSON.parse(saved) : MOCK_COMMUNITY_POSTS;
+    }
+    
+    const postMap = new Map();
+    cloudPosts.forEach(p => postMap.set(p.id, p));
+    
+    let hasChanges = false;
+    localPosts.forEach(localPost => {
+      if (!postMap.has(localPost.id)) {
+        postMap.set(localPost.id, localPost);
+        hasChanges = true;
+      } else {
+        const cloudPost = postMap.get(localPost.id);
+        const oldLikesCount = (cloudPost.likes || []).length;
+        cloudPost.likes = Array.from(new Set([...(cloudPost.likes || []), ...(localPost.likes || [])]));
+        if (cloudPost.likes.length !== oldLikesCount) {
+          hasChanges = true;
+        }
+        
+        const oldCommentsCount = (cloudPost.comments || []).length;
+        const commentMap = new Map();
+        (cloudPost.comments || []).forEach(c => commentMap.set(c.id || c.time + c.user + c.text, c));
+        (localPost.comments || []).forEach(c => commentMap.set(c.id || c.time + c.user + c.text, c));
+        cloudPost.comments = Array.from(commentMap.values());
+        if (cloudPost.comments.length !== oldCommentsCount) {
+          hasChanges = true;
+        }
+      }
+    });
+    
+    const localPostIds = new Set(localPosts.map(p => p.id));
+    const hasNewCloudPosts = cloudPosts.some(cp => !localPostIds.has(cp.id));
+    if (hasNewCloudPosts) {
+      hasChanges = true;
+    }
+    
+    const mergedPosts = Array.from(postMap.values());
+    mergedPosts.sort((a, b) => {
+      const idA = a.id.replace('post_', '');
+      const idB = b.id.replace('post_', '');
+      const numA = parseInt(idA);
+      const numB = parseInt(idB);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numB - numA;
+      }
+      return 0;
+    });
+    
+    if (hasChanges) {
+      await puter.kv.set(cloudKey, JSON.stringify(mergedPosts));
+      localStorage.setItem('weight_loss_community_posts', JSON.stringify(mergedPosts));
+      
+      const activeTab = document.querySelector('.nav-item.active')?.getAttribute('data-tab-target') || 
+                         document.querySelector('.mobile-nav-item.active')?.getAttribute('data-tab-target');
+      if (activeTab === 'community') {
+        renderCommunityPageOnly();
+      }
+    }
+  } catch (error) {
+    console.error('Failed to sync community with cloud:', error);
+  }
 }
 
 // 打开弹窗
