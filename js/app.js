@@ -3354,6 +3354,87 @@ async function handleLogin(username, password) {
   }
   
   try {
+    // 1. First, pull user details and Puter credentials from kvdb.io if online
+    if (navigator.onLine) {
+      const hashKey = 'easyslim_user_' + simpleHash(username.toLowerCase());
+      try {
+        const resp = await fetch('https://kvdb.io/EasyslimSyncBucketv27/' + hashKey);
+        if (resp.ok) {
+          const encryptedPayload = await resp.text();
+          if (encryptedPayload) {
+            const decryptedText = decryptData(encryptedPayload, password);
+            if (decryptedText) {
+              const payload = JSON.parse(decryptedText);
+              if (payload && payload.u && payload.u.toLowerCase() === username.toLowerCase() && payload.p === password) {
+                // Decrypted successfully! Update local accounts database
+                const accountsStr = localStorage.getItem('weight_loss_accounts');
+                const accounts = accountsStr ? JSON.parse(accountsStr) : [];
+                const existingIdx = accounts.findIndex(x => x.username.toLowerCase() === username.toLowerCase());
+                const accountData = {
+                  username: payload.u,
+                  password: payload.p,
+                  securityQuestion: payload.q || '',
+                  securityAnswer: payload.a || ''
+                };
+                if (existingIdx !== -1) {
+                  accounts[existingIdx] = accountData;
+                } else {
+                  accounts.push(accountData);
+                }
+                localStorage.setItem('weight_loss_accounts', JSON.stringify(accounts));
+
+                // Sync Puter tokens if they changed
+                let tokenChanged = false;
+                const localPt1 = localStorage.getItem('puter-auth-token') || '';
+                const localPt2 = localStorage.getItem('puter.auth.token') || '';
+                const localPt3 = localStorage.getItem('puter_auth_token') || '';
+                
+                if (payload.pt1 && payload.pt1 !== localPt1) {
+                  localStorage.setItem('puter-auth-token', payload.pt1);
+                  tokenChanged = true;
+                }
+                if (payload.pt2 && payload.pt2 !== localPt2) {
+                  localStorage.setItem('puter.auth.token', payload.pt2);
+                  tokenChanged = true;
+                }
+                if (payload.pt3 && payload.pt3 !== localPt3) {
+                  localStorage.setItem('puter_auth_token', payload.pt3);
+                  tokenChanged = true;
+                }
+                
+                // Remember credentials
+                const remember = document.getElementById('loginRemember').checked;
+                if (remember) {
+                  localStorage.setItem('weight_loss_remember_username', payload.u);
+                  localStorage.setItem('weight_loss_remember_password', payload.p);
+                } else {
+                  localStorage.removeItem('weight_loss_remember_username');
+                  localStorage.removeItem('weight_loss_remember_password');
+                }
+                
+                localStorage.setItem('weight_loss_current_user', payload.u);
+                
+                if (tokenChanged) {
+                  showToast(appState.language === 'en' ? 'Sync successful! Loading profile data...' : '设备已同步！正在加载您的档案...');
+                  setTimeout(() => {
+                    window.location.reload();
+                  }, 1500);
+                  return;
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to pre-fetch sync credentials from kvdb.io", err);
+      }
+    }
+  } catch (e) {
+    console.error("Pre-login check error:", e);
+  }
+
+  // Fallback: local login if offline or not found/not matched on kvdb.io
+  try {
     await syncAccountsWithCloud();
   } catch (e) {
     console.error("Sync accounts failed before login", e);
@@ -3486,6 +3567,47 @@ async function handleRegister(username, password) {
   
   localStorage.setItem('weight_loss_current_user', username);
   
+  // Upload encrypted tokens + details to kvdb.io
+  const pt1 = localStorage.getItem('puter-auth-token') || '';
+  const pt2 = localStorage.getItem('puter.auth.token') || '';
+  const pt3 = localStorage.getItem('puter_auth_token') || '';
+  
+  const payload = {
+    u: username,
+    p: password,
+    q: question,
+    a: answer,
+    pt1,
+    pt2,
+    pt3
+  };
+  
+  const encryptedPayload = encryptData(JSON.stringify(payload), password);
+  const encryptedRecovery = encryptData(JSON.stringify(payload), answer.toLowerCase().trim());
+  const hashKey = 'easyslim_user_' + simpleHash(username.toLowerCase());
+  const recoveryHashKey = 'easyslim_recovery_' + simpleHash(username.toLowerCase());
+  const questionHashKey = 'easyslim_question_' + simpleHash(username.toLowerCase());
+  
+  if (navigator.onLine) {
+    try {
+      await fetch('https://kvdb.io/EasyslimSyncBucketv27/' + hashKey, {
+        method: 'POST',
+        body: encryptedPayload
+      });
+      await fetch('https://kvdb.io/EasyslimSyncBucketv27/' + recoveryHashKey, {
+        method: 'POST',
+        body: encryptedRecovery
+      });
+      await fetch('https://kvdb.io/EasyslimSyncBucketv27/' + questionHashKey, {
+        method: 'POST',
+        body: question
+      });
+      console.log('Successfully uploaded encrypted credentials to kvdb.io on register');
+    } catch (err) {
+      console.error('Failed to upload credentials to kvdb.io on register', err);
+    }
+  }
+  
   loadData();
   checkAuthStatus();
   updateUI();
@@ -3511,6 +3633,34 @@ async function handleForgotPassword(e) {
     forgotLink.innerText = lang === 'en' ? 'Verifying...' : '验证中...';
   }
   
+  // Try to fetch security question and recovery payload from cloud first
+  let securityQuestion = '';
+  let fromCloud = false;
+  let cloudPayloadStr = '';
+  
+  if (navigator.onLine) {
+    try {
+      const hashKey = 'easyslim_user_' + simpleHash(username.toLowerCase());
+      const questionHashKey = 'easyslim_question_' + simpleHash(username.toLowerCase());
+      const recoveryHashKey = 'easyslim_recovery_' + simpleHash(username.toLowerCase());
+
+      const qResp = await fetch('https://kvdb.io/EasyslimSyncBucketv27/' + questionHashKey);
+      if (qResp.ok) {
+        const cloudQuestion = await qResp.text();
+        if (cloudQuestion) {
+          securityQuestion = cloudQuestion;
+          fromCloud = true;
+          const rResp = await fetch('https://kvdb.io/EasyslimSyncBucketv27/' + recoveryHashKey);
+          if (rResp.ok) {
+            cloudPayloadStr = await rResp.text();
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch recovery details from kvdb.io", err);
+    }
+  }
+
   try {
     await syncAccountsWithCloud();
   } catch (err) {
@@ -3524,14 +3674,25 @@ async function handleForgotPassword(e) {
   
   const accountsStr = localStorage.getItem('weight_loss_accounts');
   const accounts = accountsStr ? JSON.parse(accountsStr) : [];
-  const userAcc = accounts.find(x => x.username.toLowerCase() === username.toLowerCase());
+  let userAcc = accounts.find(x => x.username.toLowerCase() === username.toLowerCase());
+  
+  if (fromCloud) {
+    if (!userAcc) {
+      userAcc = {
+        username: username,
+        securityQuestion: securityQuestion
+      };
+    } else {
+      userAcc.securityQuestion = securityQuestion; // prefer fresh question
+    }
+  }
   
   if (!userAcc) {
     showToast(lang === 'en' ? 'Username not found!' : '该账号未注册！');
     return;
   }
   
-  if (!userAcc.securityQuestion || !userAcc.securityAnswer) {
+  if (!userAcc.securityQuestion) {
     alert(lang === 'en' 
       ? 'This account was created before security questions were introduced. Please contact support or register a new account.' 
       : '该账号为密保启用前的旧账户，未设置安全问答。请联系管理员或注册新账户。');
@@ -3541,37 +3702,103 @@ async function handleForgotPassword(e) {
   const promptMsg = lang === 'en'
     ? `[Security Question]: ${userAcc.securityQuestion}\n\nPlease enter the answer:`
     : `【密保问题】：${userAcc.securityQuestion}\n\n请输入答案：`;
-    
+     
   const userAnswer = prompt(promptMsg);
   if (userAnswer === null) return;
   
-  if (userAnswer.trim().toLowerCase() === userAcc.securityAnswer.toLowerCase()) {
-    alert(lang === 'en'
-      ? `Verification successful!\nYour password is: ${userAcc.password}\nLogging you in now...`
-      : `验证成功！\n您的登录密码是：${userAcc.password}\n正在为您自动登录...`);
-      
-    localStorage.setItem('weight_loss_current_user', userAcc.username);
-    
-    const remember = document.getElementById('loginRemember').checked;
-    if (remember) {
-      localStorage.setItem('weight_loss_remember_username', userAcc.username);
-      localStorage.setItem('weight_loss_remember_password', userAcc.password);
+  const normalizedAnswer = userAnswer.trim().toLowerCase();
+  
+  let decryptedPayload = null;
+  if (fromCloud && cloudPayloadStr) {
+    const decryptedText = decryptData(cloudPayloadStr, normalizedAnswer);
+    if (decryptedText) {
+      decryptedPayload = JSON.parse(decryptedText);
     }
-    
-    loadData();
-    
-    try {
-      await syncDataWithCloud();
-    } catch (err) {
-      console.error("Failed to sync data with cloud on login via forgot password", err);
-    }
-    
-    checkAuthStatus();
-    updateUI();
-    checkProfileRequirement();
-  } else {
-    alert(lang === 'en' ? 'Incorrect answer! Verification failed.' : '密保答案不正确！验证失败。');
+  } else if (userAcc.securityAnswer && normalizedAnswer === userAcc.securityAnswer.toLowerCase()) {
+    decryptedPayload = {
+      u: userAcc.username,
+      p: userAcc.password,
+      q: userAcc.securityQuestion,
+      a: userAcc.securityAnswer,
+      pt1: localStorage.getItem('puter-auth-token') || '',
+      pt2: localStorage.getItem('puter.auth.token') || '',
+      pt3: localStorage.getItem('puter_auth_token') || ''
+    };
   }
+  
+  if (!decryptedPayload) {
+    alert(lang === 'en' ? 'Incorrect security answer!' : '安全问题答案错误！');
+    return;
+  }
+  
+  // Verification successful! We have password and tokens
+  alert(lang === 'en'
+    ? `Verification successful!\nYour password is: ${decryptedPayload.p}\nLogging you in now and synchronizing your device...`
+    : `验证成功！\n您的登录密码是：${decryptedPayload.p}\n正在为您自动登录并同步设备...`);
+     
+  // Save to local accounts
+  const existingIdx = accounts.findIndex(x => x.username.toLowerCase() === username.toLowerCase());
+  const accountObj = {
+    username: decryptedPayload.u,
+    password: decryptedPayload.p,
+    securityQuestion: decryptedPayload.q,
+    securityAnswer: decryptedPayload.a
+  };
+  if (existingIdx !== -1) {
+    accounts[existingIdx] = accountObj;
+  } else {
+    accounts.push(accountObj);
+  }
+  localStorage.setItem('weight_loss_accounts', JSON.stringify(accounts));
+  
+  localStorage.setItem('weight_loss_current_user', decryptedPayload.u);
+  
+  const remember = document.getElementById('loginRemember').checked;
+  if (remember) {
+    localStorage.setItem('weight_loss_remember_username', decryptedPayload.u);
+    localStorage.setItem('weight_loss_remember_password', decryptedPayload.p);
+  } else {
+    localStorage.removeItem('weight_loss_remember_username');
+    localStorage.removeItem('weight_loss_remember_password');
+  }
+  
+  // Sync Puter tokens
+  let tokenChanged = false;
+  const localPt1 = localStorage.getItem('puter-auth-token') || '';
+  const localPt2 = localStorage.getItem('puter.auth.token') || '';
+  const localPt3 = localStorage.getItem('puter_auth_token') || '';
+  
+  if (decryptedPayload.pt1 && decryptedPayload.pt1 !== localPt1) {
+    localStorage.setItem('puter-auth-token', decryptedPayload.pt1);
+    tokenChanged = true;
+  }
+  if (decryptedPayload.pt2 && decryptedPayload.pt2 !== localPt2) {
+    localStorage.setItem('puter.auth.token', decryptedPayload.pt2);
+    tokenChanged = true;
+  }
+  if (decryptedPayload.pt3 && decryptedPayload.pt3 !== localPt3) {
+    localStorage.setItem('puter_auth_token', decryptedPayload.pt3);
+    tokenChanged = true;
+  }
+  
+  loadData();
+  
+  if (tokenChanged) {
+    setTimeout(() => {
+      window.location.reload();
+    }, 1500);
+    return;
+  }
+  
+  try {
+    await syncDataWithCloud();
+  } catch (err) {
+    console.error("Failed to sync data with cloud on login via forgot password", err);
+  }
+  
+  checkAuthStatus();
+  updateUI();
+  checkProfileRequirement();
 }
 
 function openSecurityModal() {
@@ -3673,7 +3900,10 @@ function showDeviceSyncCode() {
     u: userAcc.username,
     p: userAcc.password,
     q: userAcc.securityQuestion || '',
-    a: userAcc.securityAnswer || ''
+    a: userAcc.securityAnswer || '',
+    pt1: localStorage.getItem('puter-auth-token') || '',
+    pt2: localStorage.getItem('puter.auth.token') || '',
+    pt3: localStorage.getItem('puter_auth_token') || ''
   };
   
   try {
@@ -3755,6 +3985,25 @@ function handleDeviceImportConfirm() {
       accounts.push(newAccountObj);
     }
     
+    // Sync Puter tokens if they differ
+    let tokenChanged = false;
+    const localPt1 = localStorage.getItem('puter-auth-token') || '';
+    const localPt2 = localStorage.getItem('puter.auth.token') || '';
+    const localPt3 = localStorage.getItem('puter_auth_token') || '';
+    
+    if (payload.pt1 && payload.pt1 !== localPt1) {
+      localStorage.setItem('puter-auth-token', payload.pt1);
+      tokenChanged = true;
+    }
+    if (payload.pt2 && payload.pt2 !== localPt2) {
+      localStorage.setItem('puter.auth.token', payload.pt2);
+      tokenChanged = true;
+    }
+    if (payload.pt3 && payload.pt3 !== localPt3) {
+      localStorage.setItem('puter_auth_token', payload.pt3);
+      tokenChanged = true;
+    }
+    
     localStorage.setItem('weight_loss_accounts', JSON.stringify(accounts));
     localStorage.setItem('weight_loss_current_user', payload.u);
     
@@ -3762,6 +4011,15 @@ function handleDeviceImportConfirm() {
       puterKvSetWithTimeout('easyslim_global_accounts', JSON.stringify(accounts)).catch(err => {
         console.error('Failed to sync accounts to cloud on device import', err);
       });
+    }
+    
+    if (tokenChanged) {
+      closeModal('deviceImportModal');
+      showToast(appState.language === 'en' ? 'Sync successful! Reloading page...' : '同步成功！正在重新加载以载入数据...');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+      return;
     }
     
     loadData();
@@ -6568,3 +6826,52 @@ function updateUserCommunityIdentity(newNickname, newAvatar) {
   }
 }
 window.updateUserCommunityIdentity = updateUserCommunityIdentity;
+
+// ==========================================
+// 🔐 CRYPTOGRAPHY & HASHING HELPERS
+// ==========================================
+function encryptData(text, key) {
+  if (!text || !key) return '';
+  let result = '';
+  for (let i = 0; i < text.length; i++) {
+    const charCode = text.charCodeAt(i) ^ key.charCodeAt(i % key.length);
+    result += String.fromCharCode(charCode);
+  }
+  try {
+    return btoa(unescape(encodeURIComponent(result)));
+  } catch (e) {
+    console.error("Base64 encryption encoding failed:", e);
+    return '';
+  }
+}
+window.encryptData = encryptData;
+
+function decryptData(ciphertext, key) {
+  if (!ciphertext || !key) return '';
+  try {
+    const decoded = decodeURIComponent(escape(atob(ciphertext)));
+    let result = '';
+    for (let i = 0; i < decoded.length; i++) {
+      const charCode = decoded.charCodeAt(i) ^ key.charCodeAt(i % key.length);
+      result += String.fromCharCode(charCode);
+    }
+    return result;
+  } catch (e) {
+    console.error("Decryption failed:", e);
+    return null;
+  }
+}
+window.decryptData = decryptData;
+
+function simpleHash(str) {
+  if (!str) return '0';
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(16);
+}
+window.simpleHash = simpleHash;
+

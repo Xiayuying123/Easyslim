@@ -1,9 +1,9 @@
-const CACHE_NAME = 'weight-loss-tracker-v27';
+const CACHE_NAME = 'weight-loss-tracker-v28';
 const ASSETS = [
   './',
   './index.html',
   './css/style.css',
-  './js/app.js?v=27',
+  './js/app.js?v=28',
   './js/food_db.js',
   './js/recipes.js',
   './logo.svg',
