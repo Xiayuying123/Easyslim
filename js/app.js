@@ -30,7 +30,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   
   if (appState.currentUser) {
-    autoSyncPuterTokensOnStartup().then(() => {
+    autoSyncPuterTokensOnStartup().then((didSync) => {
+      if (!didSync) {
+        autoUploadPuterTokensToCloud();
+      }
+      
       (async () => {
         try {
           await syncDataWithCloud();
@@ -6909,13 +6913,13 @@ function simpleHash(str) {
 window.simpleHash = simpleHash;
 
 async function autoSyncPuterTokensOnStartup() {
-  if (!appState.currentUser || !navigator.onLine) return;
+  if (!appState.currentUser || !navigator.onLine) return false;
   
   const accountsStr = localStorage.getItem('weight_loss_accounts');
   const accounts = accountsStr ? JSON.parse(accountsStr) : [];
   const userAcc = accounts.find(x => x.username.toLowerCase() === appState.currentUser.toLowerCase());
   
-  if (!userAcc || !userAcc.password) return;
+  if (!userAcc || !userAcc.password) return false;
   
   const hashKey = 'easyslim_user_' + simpleHash(appState.currentUser.toLowerCase());
   try {
@@ -6948,6 +6952,7 @@ async function autoSyncPuterTokensOnStartup() {
             if (tokenChanged) {
               console.log("Auto-synced Puter tokens on startup. Reloading...");
               window.location.reload();
+              return true;
             }
           }
         }
@@ -6956,6 +6961,65 @@ async function autoSyncPuterTokensOnStartup() {
   } catch (err) {
     console.error("Failed to auto-sync Puter tokens on startup", err);
   }
+  return false;
 }
 window.autoSyncPuterTokensOnStartup = autoSyncPuterTokensOnStartup;
+
+async function autoUploadPuterTokensToCloud() {
+  if (!appState.currentUser || !navigator.onLine) return;
+  
+  const accountsStr = localStorage.getItem('weight_loss_accounts');
+  const accounts = accountsStr ? JSON.parse(accountsStr) : [];
+  const userAcc = accounts.find(x => x.username.toLowerCase() === appState.currentUser.toLowerCase());
+  
+  if (!userAcc || !userAcc.password) return;
+  
+  const pt1 = localStorage.getItem('puter-auth-token') || '';
+  const pt2 = localStorage.getItem('puter.auth.token') || '';
+  const pt3 = localStorage.getItem('puter_auth_token') || '';
+  
+  // Skip upload if we don't have any tokens yet
+  if (!pt1 && !pt2 && !pt3) return;
+  
+  const payload = {
+    u: userAcc.username,
+    p: userAcc.password,
+    q: userAcc.securityQuestion || '',
+    a: userAcc.securityAnswer || '',
+    pt1,
+    pt2,
+    pt3
+  };
+  
+  const encryptedPayload = encryptData(JSON.stringify(payload), userAcc.password);
+  const encryptedRecovery = userAcc.securityAnswer 
+    ? encryptData(JSON.stringify(payload), userAcc.securityAnswer.toLowerCase().trim())
+    : '';
+  const hashKey = 'easyslim_user_' + simpleHash(appState.currentUser.toLowerCase());
+  const recoveryHashKey = 'easyslim_recovery_' + simpleHash(appState.currentUser.toLowerCase());
+  const questionHashKey = 'easyslim_question_' + simpleHash(appState.currentUser.toLowerCase());
+  
+  try {
+    await fetch('https://kvdb.io/EasyslimSyncBucketv27/' + hashKey, {
+      method: 'POST',
+      body: encryptedPayload
+    });
+    if (encryptedRecovery && userAcc.securityAnswer) {
+      await fetch('https://kvdb.io/EasyslimSyncBucketv27/' + recoveryHashKey, {
+        method: 'POST',
+        body: encryptedRecovery
+      });
+    }
+    if (userAcc.securityQuestion) {
+      await fetch('https://kvdb.io/EasyslimSyncBucketv27/' + questionHashKey, {
+        method: 'POST',
+        body: userAcc.securityQuestion
+      });
+    }
+    console.log("Auto-uploaded Puter tokens to cloud for sync backup.");
+  } catch (err) {
+    console.error("Failed to auto-upload Puter tokens to cloud", err);
+  }
+}
+window.autoUploadPuterTokensToCloud = autoUploadPuterTokensToCloud;
 
