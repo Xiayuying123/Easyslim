@@ -5681,3 +5681,5 @@ window.updateNetworkStatus = updateNetworkStatus;
 window.addEventListener('online', updateNetworkStatus);
 window.addEventListener('offline', updateNetworkStatus);
 setTimeout(updateNetworkStatus, 1000);
+
+alert("Easyslim 21 脚本完全执行完毕！");
