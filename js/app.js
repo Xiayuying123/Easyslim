@@ -1,4 +1,5 @@
 // Core Application Logic for Weight Loss Tracking Tool
+alert("Easyslim 21 已成功载入！");
 
 // 默认应用状态
 let appState = {
