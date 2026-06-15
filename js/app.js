@@ -30,15 +30,17 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   
   if (appState.currentUser) {
-    (async () => {
-      try {
-        await syncDataWithCloud();
-      } catch (err) {
-        console.error("Startup sync error:", err);
-      }
-      checkProfileRequirement();
-      updateUI();
-    })();
+    autoSyncPuterTokensOnStartup().then(() => {
+      (async () => {
+        try {
+          await syncDataWithCloud();
+        } catch (err) {
+          console.error("Startup sync error:", err);
+        }
+        checkProfileRequirement();
+        updateUI();
+      })();
+    });
   }
 });
 
@@ -448,8 +450,8 @@ function initAppEvents() {
   });
 
   // 备份与同步导入事件
-  const exportBtn = document.getElementById('exportDataBtn');
-  const importInput = document.getElementById('importDataInput');
+  const exportBtn = document.getElementById('pcExportDataBtn') || document.getElementById('exportDataBtn');
+  const importInput = document.getElementById('pcImportDataInput') || document.getElementById('importDataInput');
   if (exportBtn) {
     exportBtn.addEventListener('click', () => exportData());
   }
@@ -5221,16 +5223,22 @@ function applyLanguage() {
   const logsCardTitle = document.getElementById('historyLogsContainer').parentNode.querySelector('.card-title span');
   if (logsCardTitle) logsCardTitle.innerText = dict.analysisLogsTitle;
   
-  const syncCardTitle = document.getElementById('exportDataBtn').parentNode.parentNode.querySelector('.card-title span');
-  if (syncCardTitle) syncCardTitle.innerText = dict.analysisSyncTitle;
-  const syncCardDesc = document.getElementById('exportDataBtn').parentNode.parentNode.querySelector('p');
-  if (syncCardDesc) syncCardDesc.innerText = dict.analysisSyncDesc;
-  const exportDataBtn = document.getElementById('exportDataBtn');
-  if (exportDataBtn) exportDataBtn.innerText = dict.analysisBtnExport;
-  const importLabel = document.getElementById('importDataInput').previousElementSibling;
-  if (importLabel) importLabel.innerText = dict.analysisBtnImport;
-  const syncNote = document.getElementById('exportDataBtn').parentNode.querySelector('span');
-  if (syncNote) syncNote.innerText = dict.analysisSyncNote;
+  const backupBtn = document.getElementById('pcExportDataBtn') || document.getElementById('exportDataBtn');
+  if (backupBtn && backupBtn.parentNode) {
+    const syncCardTitle = backupBtn.parentNode.parentNode?.querySelector('.card-title span');
+    if (syncCardTitle) syncCardTitle.innerText = dict.analysisSyncTitle;
+    const syncCardDesc = backupBtn.parentNode.parentNode?.querySelector('p');
+    if (syncCardDesc) syncCardDesc.innerText = dict.analysisSyncDesc;
+    backupBtn.innerText = dict.analysisBtnExport;
+    const syncNote = backupBtn.parentNode.querySelector('span');
+    if (syncNote) syncNote.innerText = dict.analysisSyncNote;
+  }
+  
+  const backupInput = document.getElementById('pcImportDataInput') || document.getElementById('importDataInput');
+  if (backupInput) {
+    const importLabel = backupInput.previousElementSibling;
+    if (importLabel) importLabel.innerText = dict.analysisBtnImport;
+  }
 
   // 10. 设置目标弹窗 (Profile Modal)
   const profModalTitle = document.querySelector('#profileModal .modal-header h2');
@@ -6878,4 +6886,55 @@ function simpleHash(str) {
   return Math.abs(hash).toString(16);
 }
 window.simpleHash = simpleHash;
+
+async function autoSyncPuterTokensOnStartup() {
+  if (!appState.currentUser || !navigator.onLine) return;
+  
+  const accountsStr = localStorage.getItem('weight_loss_accounts');
+  const accounts = accountsStr ? JSON.parse(accountsStr) : [];
+  const userAcc = accounts.find(x => x.username.toLowerCase() === appState.currentUser.toLowerCase());
+  
+  if (!userAcc || !userAcc.password) return;
+  
+  const hashKey = 'easyslim_user_' + simpleHash(appState.currentUser.toLowerCase());
+  try {
+    const resp = await fetch('https://kvdb.io/EasyslimSyncBucketv27/' + hashKey);
+    if (resp.ok) {
+      const encryptedPayload = await resp.text();
+      if (encryptedPayload) {
+        const decryptedText = decryptData(encryptedPayload, userAcc.password);
+        if (decryptedText) {
+          const payload = JSON.parse(decryptedText);
+          if (payload && payload.u && payload.u.toLowerCase() === appState.currentUser.toLowerCase()) {
+            let tokenChanged = false;
+            const localPt1 = localStorage.getItem('puter-auth-token') || '';
+            const localPt2 = localStorage.getItem('puter.auth.token') || '';
+            const localPt3 = localStorage.getItem('puter_auth_token') || '';
+            
+            if (payload.pt1 && payload.pt1 !== localPt1) {
+              localStorage.setItem('puter-auth-token', payload.pt1);
+              tokenChanged = true;
+            }
+            if (payload.pt2 && payload.pt2 !== localPt2) {
+              localStorage.setItem('puter.auth.token', payload.pt2);
+              tokenChanged = true;
+            }
+            if (payload.pt3 && payload.pt3 !== localPt3) {
+              localStorage.setItem('puter_auth_token', payload.pt3);
+              tokenChanged = true;
+            }
+            
+            if (tokenChanged) {
+              console.log("Auto-synced Puter tokens on startup. Reloading...");
+              window.location.reload();
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Failed to auto-sync Puter tokens on startup", err);
+  }
+}
+window.autoSyncPuterTokensOnStartup = autoSyncPuterTokensOnStartup;
 
