@@ -61,8 +61,10 @@ function loadData() {
     try {
       const parsed = JSON.parse(savedState);
       appState.profile = parsed.profile || null;
-      if (appState.profile && appState.profile.points === undefined) {
+      if (appState.profile && !appState.profile.pointsMigrated) {
         appState.profile.points = 100000000;
+        appState.profile.pointsMigrated = true;
+        setTimeout(saveData, 0);
       }
       appState.records = parsed.records || {};
     } catch (e) {
@@ -701,6 +703,7 @@ function saveProfile() {
   const targetCals = window.calculateTargetCalories(currentWeight, targetWeight, durationMonths, bmrTdee);
   
   const existingPoints = (appState.profile && appState.profile.points) !== undefined ? appState.profile.points : 100000000;
+  const existingPointsMigrated = (appState.profile && appState.profile.pointsMigrated) || false;
   const existingUnlocked = (appState.profile && appState.profile.unlockedFeatures) || [];
   const existingPointsLog = (appState.profile && appState.profile.pointsLog) || [];
   const existingStartDate = (appState.profile && appState.profile.startDate) || getTodayString();
@@ -730,6 +733,7 @@ function saveProfile() {
     preferredCuisine,
     // 积分与解锁状态保留
     points: existingPoints,
+    pointsMigrated: existingPointsMigrated || true,
     unlockedFeatures: existingUnlocked,
     pointsLog: existingPointsLog
   };
