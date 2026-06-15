@@ -483,7 +483,7 @@
               <div style="display:flex; gap:8px;">
                 <button class="btn btn-secondary btn-sm" onclick="openModal('profileModal')" style="padding:4px 8px">修改指标</button>
                 <button class="btn btn-secondary btn-sm" onclick="openSecurityModal()" style="padding:4px 8px">密码设置</button>
-                <button class="btn btn-secondary btn-sm" onclick="showDeviceSyncCode()" style="padding:4px 8px">设备同步</button>
+                <button class="btn btn-secondary btn-sm" onclick="try { showDeviceSyncCode(); } catch(err) { alert('Error: ' + err.message); }" style="padding:4px 8px">设备同步</button>
                 <button class="btn btn-danger btn-sm" onclick="logout()" style="padding:4px 8px">退出登录</button>
               </div>
             </div>
@@ -615,7 +615,7 @@
         <div class="auth-error" id="loginError" style="color:var(--danger); font-size:12px; margin-bottom:12px; display:none;"></div>
         <button type="submit" class="btn btn-primary" style="width: 100%;">立即登录</button>
         <div style="text-align: center; margin-top: 14px;">
-          <a href="#" onclick="openDeviceImportModal(event)" style="font-size:12px; color:var(--primary); text-decoration:none; font-weight:500;">🔗 使用设备同步码导入账号</a>
+          <a href="#" onclick="try { openDeviceImportModal(event); } catch(err) { alert('Error: ' + err.message); }" style="font-size:12px; color:var(--primary); text-decoration:none; font-weight:500;">🔗 使用设备同步码导入账号</a>
         </div>
       </form>
       
@@ -949,7 +949,7 @@
         <p style="color:var(--text-muted); font-size:13px;">请在下方文本框中粘贴您从另一台设备上复制的同步密匙：</p>
         <textarea id="deviceImportCodeText" placeholder="在此粘贴同步密匙..." style="width:100%; height:120px; font-family:monospace; font-size:12px; padding:10px; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-main); resize:none; word-break:break-all;"></textarea>
         <div id="deviceImportError" style="color:var(--danger); font-size:12px; display:none;"></div>
-        <button class="btn btn-primary" onclick="handleDeviceImportConfirm()" style="width:100%;">确认导入并登录</button>
+        <button class="btn btn-primary" onclick="try { handleDeviceImportConfirm(); } catch(err) { alert('Error: ' + err.message); }" style="width:100%;">确认导入并登录</button>
       </div>
     </div>
   </div>
@@ -1064,7 +1064,7 @@
   <!-- Scripts -->
   <script src="js/food_db.js"></script>
   <script src="js/recipes.js"></script>
-  <script src="js/app.js?v=20"></script>
+  <script src="js/app.js?v=21"></script>
   
   <script>
     // 绑定饮食记录里的单餐选择 Tab 事件
