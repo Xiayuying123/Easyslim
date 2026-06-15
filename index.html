@@ -480,12 +480,7 @@
           <div class="card">
             <div class="card-title">
               <span>我的个人身体档案</span>
-              <div style="display:flex; gap:8px;">
-                <button class="btn btn-secondary btn-sm" onclick="openModal('profileModal')" style="padding:4px 8px">修改指标</button>
-                <button class="btn btn-secondary btn-sm" onclick="openSecurityModal()" style="padding:4px 8px">密码设置</button>
-                <button class="btn btn-secondary btn-sm" onclick="try { showDeviceSyncCode(); } catch(err) { alert('Error: ' + err.message); }" style="padding:4px 8px">设备同步</button>
-                <button class="btn btn-danger btn-sm" onclick="logout()" style="padding:4px 8px">退出登录</button>
-              </div>
+              <div class="icon-badge">📊</div>
             </div>
             <div id="analyticsProfileDetails">
               <!-- Dynamically populated -->
@@ -501,30 +496,6 @@
             <div id="historyLogsContainer" style="max-height:220px; overflow-y:auto; padding-right:6px;">
               <!-- Dynamically populated list -->
             </div>
-          </div>
-        </div>
-
-        <!-- Data Sync/Migration Backup Card -->
-        <div class="card" style="margin-top: 8px;">
-          <div class="card-title">
-            <span>📲 数据多端迁移与同步备份</span>
-            <div class="icon-badge">💾</div>
-          </div>
-          <p style="color:var(--text-muted); font-size:12px; margin-bottom:16px;">
-            本工具为离线优先应用，数据默认存储在当前设备的本地浏览器中。
-            您可以通过以下功能导出数据，并在另一台设备上导入合并，实现多端同步：
-          </p>
-          <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
-            <button class="btn btn-primary" id="exportDataBtn">
-              📤 导出此设备备份
-            </button>
-            <div style="position: relative; overflow: hidden; display: inline-block;">
-              <button class="btn btn-secondary" style="pointer-events: none;">📥 导入并合并备份</button>
-              <input type="file" id="importDataInput" accept=".json" style="position: absolute; font-size: 100px; right: 0; top: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;">
-            </div>
-            <span style="font-size: 11px; color: var(--text-muted);">
-              (注：导入采用“合并覆盖”策略，合并两端所有的打卡日志，不会造成数据丢失)
-            </span>
           </div>
         </div>
       </section>
@@ -1104,7 +1075,7 @@
   <!-- Scripts -->
   <script src="js/food_db.js"></script>
   <script src="js/recipes.js"></script>
-  <script src="js/app.js?v=26"></script>
+  <script src="js/app.js?v=27"></script>
   
   <script>
     // 绑定饮食记录里的单餐选择 Tab 事件

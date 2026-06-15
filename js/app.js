@@ -1090,6 +1090,13 @@ function updateUI() {
   if (typeof updatePointsUI === 'function') {
     updatePointsUI();
   }
+  
+  // 7. 更新个人中心页面
+  const activeTab = document.querySelector('.nav-item.active')?.getAttribute('data-tab-target') || 
+                    document.querySelector('.mobile-nav-item.active')?.getAttribute('data-tab-target');
+  if (activeTab === 'profileCenter' && typeof renderProfileCenterPage === 'function') {
+    renderProfileCenterPage();
+  }
 }
 
 // 仪表盘上的今日食谱极简版
@@ -6080,3 +6087,482 @@ setInterval(() => {
     syncDataWithCloud();
   }
 }, 25000);
+
+// ==========================================
+// 👤 PERSONAL CENTER (个人中心) & NICKNAME FUNCTIONS
+// ==========================================
+
+function renderProfileCenterPage() {
+  const summaryEl = document.getElementById('pcProfileSummary');
+  if (!summaryEl) return;
+  
+  if (!appState.profile) {
+    summaryEl.innerHTML = `
+      <div style="color:var(--text-muted); font-size:13px; text-align:center; padding:20px 0;">
+        ⚠️ 尚未配置身体目标档案。
+      </div>
+    `;
+    return;
+  }
+  
+  // Find latest recorded morning weight
+  let currentWeight = appState.profile.initialWeight;
+  const sortedDates = Object.keys(appState.records).sort().reverse();
+  for (const date of sortedDates) {
+    if (appState.records[date] && appState.records[date].morningWeight) {
+      currentWeight = appState.records[date].morningWeight;
+      break;
+    }
+  }
+  
+  // Map values to labels
+  const recipeLabels = {
+    water_oil: '水油焖菜系列',
+    salad: '轻食沙拉系列',
+    keto: '低碳生酮系列',
+    mediterranean: '地中海膳食系列'
+  };
+  const cuisineLabels = {
+    chinese: '中餐膳食',
+    american: '美式轻卡',
+    japanese: '和风日式'
+  };
+  
+  const recipeSeriesLabel = recipeLabels[appState.profile.recipeSeries] || appState.profile.recipeSeries || '水油焖菜系列';
+  const cuisineLabel = cuisineLabels[appState.profile.preferredCuisine] || appState.profile.preferredCuisine || '中餐';
+  
+  summaryEl.innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border-color); padding-bottom:6px;">
+        <span style="color:var(--text-muted);">身高 / 年龄 / 性别</span>
+        <span style="font-weight:600; color:var(--text-main);">${appState.profile.height} cm / ${appState.profile.age}岁 / ${appState.profile.gender === 'female' ? '女' : '男'}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border-color); padding-bottom:6px;">
+        <span style="color:var(--text-muted);">初始体重</span>
+        <span style="font-weight:600; color:var(--text-main);">${appState.profile.initialWeight} kg</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border-color); padding-bottom:6px;">
+        <span style="color:var(--text-muted);">当前最新体重</span>
+        <span style="font-weight:600; color:var(--primary);">${currentWeight} kg</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border-color); padding-bottom:6px;">
+        <span style="color:var(--text-muted);">目标体重</span>
+        <span style="font-weight:600; color:var(--accent-blue);">${appState.profile.targetWeight} kg</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border-color); padding-bottom:6px;">
+        <span style="color:var(--text-muted);">每日热量预算</span>
+        <span style="font-weight:600; color:var(--text-main);">${appState.profile.targetCalories} kcal</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border-color); padding-bottom:6px;">
+        <span style="color:var(--text-muted);">断食模式</span>
+        <span style="font-weight:600; color:var(--text-main);">${appState.profile.dietPattern === '5_2' ? '5:2轻断食' : '16:8断食'}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between;">
+        <span style="color:var(--text-muted);">推荐食谱系列</span>
+        <span style="font-weight:600; color:var(--text-main);">${recipeSeriesLabel} (${cuisineLabel})</span>
+      </div>
+    </div>
+  `;
+  
+  // Populate Accounts Form Fields
+  if (appState.currentUser) {
+    const accountsStr = localStorage.getItem('weight_loss_accounts');
+    const accounts = accountsStr ? JSON.parse(accountsStr) : [];
+    const userAcc = accounts.find(x => x.username.toLowerCase() === appState.currentUser.toLowerCase());
+    if (userAcc) {
+      const uInput = document.getElementById('pcUsernameInput');
+      const pInput = document.getElementById('pcPasswordInput');
+      const qInput = document.getElementById('pcQuestionInput');
+      const aInput = document.getElementById('pcAnswerInput');
+      
+      if (uInput) uInput.value = userAcc.username;
+      if (pInput) pInput.value = userAcc.password;
+      if (qInput) qInput.value = userAcc.securityQuestion || '';
+      if (aInput) aInput.value = userAcc.securityAnswer || '';
+    }
+  }
+}
+window.renderProfileCenterPage = renderProfileCenterPage;
+
+async function submitAccountSecurityUpdate() {
+  const password = document.getElementById('pcPasswordInput').value.trim();
+  const question = document.getElementById('pcQuestionInput').value.trim();
+  const answer = document.getElementById('pcAnswerInput').value.trim();
+  
+  if (password.length < 4) {
+    showToast('❌ 密码不能少于 4 位');
+    return;
+  }
+  if (!question || !answer) {
+    showToast('❌ 请填写密保问题与答案');
+    return;
+  }
+  
+  const accountsStr = localStorage.getItem('weight_loss_accounts');
+  const accounts = accountsStr ? JSON.parse(accountsStr) : [];
+  const uIdx = accounts.findIndex(x => x.username.toLowerCase() === appState.currentUser.toLowerCase());
+  
+  if (uIdx === -1) {
+    showToast('❌ 未找到当前账号');
+    return;
+  }
+  
+  // Update fields
+  accounts[uIdx].password = password;
+  accounts[uIdx].securityQuestion = question;
+  accounts[uIdx].securityAnswer = answer;
+  
+  localStorage.setItem('weight_loss_accounts', JSON.stringify(accounts));
+  
+  // Sync accounts list with Puter KV
+  if (typeof puter !== 'undefined' && puter.kv && navigator.onLine) {
+    try {
+      await puterKvSetWithTimeout('easyslim_global_accounts', JSON.stringify(accounts));
+    } catch (e) {
+      console.error('Failed to sync accounts list with Puter KV', e);
+    }
+  }
+  
+  // Upload encrypted tokens + details to kvdb.io
+  const pt1 = localStorage.getItem('puter-auth-token') || '';
+  const pt2 = localStorage.getItem('puter.auth.token') || '';
+  const pt3 = localStorage.getItem('puter_auth_token') || '';
+  
+  const payload = {
+    u: appState.currentUser,
+    p: password,
+    q: question,
+    a: answer,
+    pt1,
+    pt2,
+    pt3
+  };
+  
+  const encryptedPayload = encryptData(JSON.stringify(payload), password);
+  const encryptedRecovery = encryptData(JSON.stringify(payload), answer.toLowerCase().trim());
+  const hashKey = 'easyslim_user_' + simpleHash(appState.currentUser.toLowerCase());
+  const recoveryHashKey = 'easyslim_recovery_' + simpleHash(appState.currentUser.toLowerCase());
+  const questionHashKey = 'easyslim_question_' + simpleHash(appState.currentUser.toLowerCase());
+  
+  if (navigator.onLine) {
+    try {
+      await fetch('https://kvdb.io/EasyslimSyncBucketv27/' + hashKey, {
+        method: 'POST',
+        body: encryptedPayload
+      });
+      await fetch('https://kvdb.io/EasyslimSyncBucketv27/' + recoveryHashKey, {
+        method: 'POST',
+        body: encryptedRecovery
+      });
+      await fetch('https://kvdb.io/EasyslimSyncBucketv27/' + questionHashKey, {
+        method: 'POST',
+        body: question
+      });
+      console.log('Successfully updated encrypted account credentials on kvdb.io');
+    } catch (err) {
+      console.error('Failed to upload credentials to kvdb.io', err);
+    }
+  }
+  
+  // Update remembered password if it was remembered
+  const rememberedUser = localStorage.getItem('weight_loss_remember_username');
+  if (rememberedUser && rememberedUser.toLowerCase() === appState.currentUser.toLowerCase()) {
+    localStorage.setItem('weight_loss_remember_password', password);
+  }
+  
+  showToast('💾 账号密保及密码保存成功！');
+  updateUI();
+}
+window.submitAccountSecurityUpdate = submitAccountSecurityUpdate;
+
+async function submitRenameUsername() {
+  const newUsername = document.getElementById('pcUsernameInput').value.trim();
+  const oldUsername = appState.currentUser;
+  
+  if (!newUsername || newUsername.length < 2) {
+    showToast('❌ 账号名称不能少于 2 位');
+    return;
+  }
+  
+  if (newUsername.toLowerCase() === oldUsername.toLowerCase()) {
+    showToast('ℹ️ 新账号名称与当前名称一致，无需修改');
+    return;
+  }
+  
+  const accountsStr = localStorage.getItem('weight_loss_accounts');
+  const accounts = accountsStr ? JSON.parse(accountsStr) : [];
+  
+  // Check if name is taken
+  const nameExists = accounts.some(x => x.username.toLowerCase() === newUsername.toLowerCase());
+  if (nameExists) {
+    showToast('❌ 该账号名称已被其他用户占用');
+    return;
+  }
+  
+  if (!confirm(`确定要将账号名修改为 '${newUsername}' 吗？\n修改后将迁移您的所有身体数据及社区历史记录。`)) {
+    return;
+  }
+  
+  const submitBtn = document.querySelector('button[onclick="submitRenameUsername()"]');
+  if (submitBtn) submitBtn.disabled = true;
+  
+  try {
+    // 1. Update accounts array
+    const uIdx = accounts.findIndex(x => x.username.toLowerCase() === oldUsername.toLowerCase());
+    if (uIdx !== -1) {
+      accounts[uIdx].username = newUsername;
+    }
+    localStorage.setItem('weight_loss_accounts', JSON.stringify(accounts));
+    
+    // Sync accounts list with Puter KV
+    if (typeof puter !== 'undefined' && puter.kv && navigator.onLine) {
+      await puterKvSetWithTimeout('easyslim_global_accounts', JSON.stringify(accounts));
+    }
+    
+    // 2. Migrate localStorage keys
+    const profileData = localStorage.getItem(`weight_loss_profile_${oldUsername}`);
+    const recordsData = localStorage.getItem(`weight_loss_records_${oldUsername}`);
+    
+    if (profileData) {
+      localStorage.setItem(`weight_loss_profile_${newUsername}`, profileData);
+      localStorage.removeItem(`weight_loss_profile_${oldUsername}`);
+    }
+    if (recordsData) {
+      localStorage.setItem(`weight_loss_records_${newUsername}`, recordsData);
+      localStorage.removeItem(`weight_loss_records_${oldUsername}`);
+    }
+    
+    localStorage.setItem('weight_loss_current_user', newUsername);
+    appState.currentUser = newUsername;
+    
+    // 3. Write profile and records to the new Cloud key, and clear the old Cloud key
+    if (typeof puter !== 'undefined' && puter.kv && navigator.onLine) {
+      const stateToUpload = {
+        profile: appState.profile,
+        records: appState.records
+      };
+      await puterKvSetWithTimeout(`easyslim_sync_user_${newUsername}`, JSON.stringify(stateToUpload));
+      // Delete old key
+      try {
+        await puter.kv.set(`easyslim_sync_user_${oldUsername}`, '');
+      } catch (err) {
+        console.error('Failed to clean up old cloud KV key', err);
+      }
+    }
+    
+    // 4. Migrate community posts, comments, likes
+    const posts = getOrCreateCommunityPosts();
+    let communityModified = false;
+    posts.forEach(post => {
+      // Migrate post author
+      if (post.user.toLowerCase() === oldUsername.toLowerCase()) {
+        post.user = newUsername;
+        if (!post.nickname || post.nickname === oldUsername) {
+          post.nickname = newUsername;
+        }
+        communityModified = true;
+      }
+      // Migrate likes
+      const likeIdx = post.likes.findIndex(u => u.toLowerCase() === oldUsername.toLowerCase());
+      if (likeIdx !== -1) {
+        post.likes[likeIdx] = newUsername;
+        communityModified = true;
+      }
+      // Migrate comments
+      if (post.comments) {
+        post.comments.forEach(c => {
+          if (c.user.toLowerCase() === oldUsername.toLowerCase()) {
+            c.user = newUsername;
+            if (!c.nickname || c.nickname === oldUsername) {
+              c.nickname = newUsername;
+            }
+            communityModified = true;
+          }
+        });
+      }
+    });
+    
+    if (communityModified) {
+      saveCommunityPosts(posts);
+      if (typeof puter !== 'undefined' && puter.kv && navigator.onLine) {
+        await puterKvSetWithTimeout('easyslim_global_community_posts', JSON.stringify(posts));
+      }
+    }
+    
+    // 5. Upload new encrypted credentials to kvdb.io, and clean up old one
+    const password = uIdx !== -1 ? accounts[uIdx].password : '';
+    const question = uIdx !== -1 ? accounts[uIdx].securityQuestion : '';
+    const answer = uIdx !== -1 ? accounts[uIdx].securityAnswer : '';
+    const pt1 = localStorage.getItem('puter-auth-token') || '';
+    const pt2 = localStorage.getItem('puter.auth.token') || '';
+    const pt3 = localStorage.getItem('puter_auth_token') || '';
+    
+    const payload = {
+      u: newUsername,
+      p: password,
+      q: question,
+      a: answer,
+      pt1,
+      pt2,
+      pt3
+    };
+    
+    const encryptedPayload = encryptData(JSON.stringify(payload), password);
+    const encryptedRecovery = encryptData(JSON.stringify(payload), answer.toLowerCase().trim());
+    const newHashKey = 'easyslim_user_' + simpleHash(newUsername.toLowerCase());
+    const oldHashKey = 'easyslim_user_' + simpleHash(oldUsername.toLowerCase());
+    const newQuestionHashKey = 'easyslim_question_' + simpleHash(newUsername.toLowerCase());
+    const oldQuestionHashKey = 'easyslim_question_' + simpleHash(oldUsername.toLowerCase());
+    const newRecoveryHashKey = 'easyslim_recovery_' + simpleHash(newUsername.toLowerCase());
+    const oldRecoveryHashKey = 'easyslim_recovery_' + simpleHash(oldUsername.toLowerCase());
+    
+    if (navigator.onLine) {
+      try {
+        await fetch('https://kvdb.io/EasyslimSyncBucketv27/' + newHashKey, {
+          method: 'POST',
+          body: encryptedPayload
+        });
+        await fetch('https://kvdb.io/EasyslimSyncBucketv27/' + newQuestionHashKey, {
+          method: 'POST',
+          body: question
+        });
+        await fetch('https://kvdb.io/EasyslimSyncBucketv27/' + newRecoveryHashKey, {
+          method: 'POST',
+          body: encryptedRecovery
+        });
+        
+        // Clear old keys
+        await fetch('https://kvdb.io/EasyslimSyncBucketv27/' + oldHashKey, { method: 'POST', body: '' });
+        await fetch('https://kvdb.io/EasyslimSyncBucketv27/' + oldQuestionHashKey, { method: 'POST', body: '' });
+        await fetch('https://kvdb.io/EasyslimSyncBucketv27/' + oldRecoveryHashKey, { method: 'POST', body: '' });
+      } catch (err) {
+        console.error('Failed to update credentials on kvdb.io during rename', err);
+      }
+    }
+    
+    // Update remembered username if it was remembered
+    const rememberedUser = localStorage.getItem('weight_loss_remember_username');
+    if (rememberedUser && rememberedUser.toLowerCase() === oldUsername.toLowerCase()) {
+      localStorage.setItem('weight_loss_remember_username', newUsername);
+    }
+    
+    showToast(`🎉 成功将账号名修改为：${newUsername}！`);
+    updateUI();
+  } catch (err) {
+    console.error('Failed to rename username:', err);
+    showToast('❌ 修改账号名时发生错误，请重试');
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+window.submitRenameUsername = submitRenameUsername;
+
+function selectPresetEmoji(emoji) {
+  const emojiInput = document.getElementById('comEditAvatarEmoji');
+  if (emojiInput) {
+    emojiInput.value = emoji;
+  }
+}
+window.selectPresetEmoji = selectPresetEmoji;
+
+function openCommunityProfileEdit() {
+  if (!appState.profile) {
+    showToast('请先在今日概览或个人中心设置目标以初始化您的档案');
+    return;
+  }
+  
+  document.getElementById('comEditNickname').value = appState.profile.nickname || appState.currentUser;
+  
+  const avatarVal = appState.profile.avatar || '';
+  if (avatarVal.startsWith('data:image')) {
+    document.getElementById('comEditAvatarEmoji').value = '';
+  } else {
+    document.getElementById('comEditAvatarEmoji').value = avatarVal;
+  }
+  document.getElementById('comEditAvatarFile').value = ''; // clear file input
+  
+  openModal('communityProfileModal');
+}
+window.openCommunityProfileEdit = openCommunityProfileEdit;
+
+function submitSaveCommunityProfile() {
+  const nicknameInput = document.getElementById('comEditNickname');
+  const emojiInput = document.getElementById('comEditAvatarEmoji');
+  const fileInput = document.getElementById('comEditAvatarFile');
+  
+  const newNickname = nicknameInput.value.trim() || appState.currentUser;
+  let newAvatar = emojiInput.value.trim();
+  
+  if (fileInput.files && fileInput.files[0]) {
+    const file = fileInput.files[0];
+    if (file.size > 200 * 1024) {
+      showToast('❌ 头像图片文件大小不能超过 200KB');
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      newAvatar = e.target.result; // Base64 string
+      saveCommunityProfileState(newNickname, newAvatar);
+    };
+    reader.readAsDataURL(file);
+  } else {
+    if (!newAvatar) {
+      newAvatar = appState.currentUser.substring(0, 2).toUpperCase();
+    }
+    saveCommunityProfileState(newNickname, newAvatar);
+  }
+}
+window.submitSaveCommunityProfile = submitSaveCommunityProfile;
+
+function saveCommunityProfileState(newNickname, newAvatar) {
+  if (!appState.profile) appState.profile = {};
+  
+  appState.profile.nickname = newNickname;
+  appState.profile.avatar = newAvatar;
+  
+  saveData(); // saves locally and triggers cloud sync
+  
+  // Now modify nickname/avatar on all historical posts and comments by this user
+  updateUserCommunityIdentity(newNickname, newAvatar);
+  
+  closeModal('communityProfileModal');
+  showToast('🎉 社群资料保存成功！');
+  
+  // Re-render
+  renderCommunityProfileHome();
+  renderCommunityPageOnly();
+  updateUI();
+}
+
+function updateUserCommunityIdentity(newNickname, newAvatar) {
+  const posts = getOrCreateCommunityPosts();
+  let modified = false;
+  
+  posts.forEach(post => {
+    if (post.user.toLowerCase() === appState.currentUser.toLowerCase()) {
+      post.nickname = newNickname;
+      post.avatar = newAvatar;
+      modified = true;
+    }
+    
+    if (post.comments) {
+      post.comments.forEach(comment => {
+        if (comment.user.toLowerCase() === appState.currentUser.toLowerCase()) {
+          comment.nickname = newNickname;
+          modified = true;
+        }
+      });
+    }
+  });
+  
+  if (modified) {
+    saveCommunityPosts(posts);
+    if (typeof puter !== 'undefined' && puter.kv && navigator.onLine) {
+      puterKvSetWithTimeout('easyslim_global_community_posts', JSON.stringify(posts)).catch(err => {
+        console.error('Failed to sync updated posts to cloud', err);
+      });
+    }
+  }
+}
+window.updateUserCommunityIdentity = updateUserCommunityIdentity;
