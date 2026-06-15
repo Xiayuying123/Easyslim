@@ -483,6 +483,7 @@
               <div style="display:flex; gap:8px;">
                 <button class="btn btn-secondary btn-sm" onclick="openModal('profileModal')" style="padding:4px 8px">修改指标</button>
                 <button class="btn btn-secondary btn-sm" onclick="openSecurityModal()" style="padding:4px 8px">密码设置</button>
+                <button class="btn btn-secondary btn-sm" onclick="showDeviceSyncCode()" style="padding:4px 8px">设备同步</button>
                 <button class="btn btn-danger btn-sm" onclick="logout()" style="padding:4px 8px">退出登录</button>
               </div>
             </div>
@@ -613,6 +614,9 @@
         </div>
         <div class="auth-error" id="loginError" style="color:var(--danger); font-size:12px; margin-bottom:12px; display:none;"></div>
         <button type="submit" class="btn btn-primary" style="width: 100%;">立即登录</button>
+        <div style="text-align: center; margin-top: 14px;">
+          <a href="#" onclick="openDeviceImportModal(event)" style="font-size:12px; color:var(--primary); text-decoration:none; font-weight:500;">🔗 使用设备同步码导入账号</a>
+        </div>
       </form>
       
       <!-- Register Form (Hidden by default) -->
@@ -912,6 +916,41 @@
           <button type="submit" class="btn btn-primary" style="width: 100%;">保存修改</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Device Sync Code Modal -->
+  <div class="modal-overlay" id="deviceSyncModal" style="z-index: 230;">
+    <div class="modal" style="max-width: 440px;">
+      <div class="modal-header">
+        <h2>设备账户同步码</h2>
+        <button class="close-btn" onclick="closeModal('deviceSyncModal')">
+          <svg style="width:24px;height:24px" viewBox="0 0 24 24"><path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/></svg>
+        </button>
+      </div>
+      <div class="modal-body" style="gap: 16px;">
+        <p style="color:var(--text-muted); font-size:13px;">请复制下方文本框中的同步密匙，然后在另一台设备（如手机）的登录界面中点击<b>“使用设备同步码导入账号”</b>并粘贴导入：</p>
+        <textarea id="deviceSyncCodeText" readonly style="width:100%; height:120px; font-family:monospace; font-size:12px; padding:10px; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-main); resize:none; word-break:break-all;"></textarea>
+        <button class="btn btn-primary" onclick="copyDeviceSyncCode()" style="width:100%;">复制同步密匙</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Device Import Modal -->
+  <div class="modal-overlay" id="deviceImportModal" style="z-index: 230;">
+    <div class="modal" style="max-width: 440px;">
+      <div class="modal-header">
+        <h2>使用同步码导入账号</h2>
+        <button class="close-btn" onclick="closeModal('deviceImportModal')">
+          <svg style="width:24px;height:24px" viewBox="0 0 24 24"><path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/></svg>
+        </button>
+      </div>
+      <div class="modal-body" style="gap: 16px;">
+        <p style="color:var(--text-muted); font-size:13px;">请在下方文本框中粘贴您从另一台设备上复制的同步密匙：</p>
+        <textarea id="deviceImportCodeText" placeholder="在此粘贴同步密匙..." style="width:100%; height:120px; font-family:monospace; font-size:12px; padding:10px; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-main); resize:none; word-break:break-all;"></textarea>
+        <div id="deviceImportError" style="color:var(--danger); font-size:12px; display:none;"></div>
+        <button class="btn btn-primary" onclick="handleDeviceImportConfirm()" style="width:100%;">确认导入并登录</button>
+      </div>
     </div>
   </div>
 

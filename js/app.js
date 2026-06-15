@@ -3277,6 +3277,143 @@ async function handleSaveSecurity(e) {
   }
 }
 
+// ==========================================
+// 📱 DEVICE ACCOUNT TRANSFER SYNC CODE
+// ==========================================
+function showDeviceSyncCode() {
+  const accountsStr = localStorage.getItem('weight_loss_accounts');
+  const accounts = accountsStr ? JSON.parse(accountsStr) : [];
+  const userAcc = accounts.find(x => x.username.toLowerCase() === appState.currentUser.toLowerCase());
+  
+  if (!userAcc) {
+    showToast('❌ 未找到当前登录账号信息');
+    return;
+  }
+  
+  const payload = {
+    u: userAcc.username,
+    p: userAcc.password,
+    q: userAcc.securityQuestion || '',
+    a: userAcc.securityAnswer || ''
+  };
+  
+  try {
+    const jsonStr = JSON.stringify(payload);
+    const token = btoa(encodeURIComponent(jsonStr).replace(/%([0-9A-F]{2})/g, (match, p1) => {
+      return String.fromCharCode('0x' + p1);
+    }));
+    
+    document.getElementById('deviceSyncCodeText').value = token;
+    openModal('deviceSyncModal');
+  } catch (err) {
+    console.error('Failed to generate sync code', err);
+    showToast('❌ 生成同步码失败');
+  }
+}
+window.showDeviceSyncCode = showDeviceSyncCode;
+
+function copyDeviceSyncCode() {
+  const textarea = document.getElementById('deviceSyncCodeText');
+  textarea.select();
+  textarea.setSelectionRange(0, 99999);
+  
+  try {
+    navigator.clipboard.writeText(textarea.value).then(() => {
+      showToast('📋 同步码已复制到剪贴板！');
+    }).catch(() => {
+      document.execCommand('copy');
+      showToast('📋 同步码已复制到剪贴板！');
+    });
+  } catch (e) {
+    showToast('❌ 复制失败，请手动长选复制');
+  }
+}
+window.copyDeviceSyncCode = copyDeviceSyncCode;
+
+function openDeviceImportModal(e) {
+  if (e) e.preventDefault();
+  document.getElementById('deviceImportCodeText').value = '';
+  document.getElementById('deviceImportError').style.display = 'none';
+  openModal('deviceImportModal');
+}
+window.openDeviceImportModal = openDeviceImportModal;
+
+function handleDeviceImportConfirm() {
+  const token = document.getElementById('deviceImportCodeText').value.trim();
+  const errEl = document.getElementById('deviceImportError');
+  errEl.style.display = 'none';
+  
+  if (!token) {
+    errEl.innerText = '❌ 请先输入同步密匙';
+    errEl.style.display = 'block';
+    return;
+  }
+  
+  try {
+    const jsonStr = decodeURIComponent(atob(token).split('').map(c => {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    
+    const payload = JSON.parse(jsonStr);
+    if (!payload.u || !payload.p) {
+      throw new Error('Invalid payload fields');
+    }
+    
+    const accountsStr = localStorage.getItem('weight_loss_accounts');
+    const accounts = accountsStr ? JSON.parse(accountsStr) : [];
+    
+    const existingIndex = accounts.findIndex(x => x.username.toLowerCase() === payload.u.toLowerCase());
+    const newAccountObj = {
+      username: payload.u,
+      password: payload.p,
+      securityQuestion: payload.q || '',
+      securityAnswer: payload.a || ''
+    };
+    
+    if (existingIndex > -1) {
+      accounts[existingIndex] = newAccountObj;
+    } else {
+      accounts.push(newAccountObj);
+    }
+    
+    localStorage.setItem('weight_loss_accounts', JSON.stringify(accounts));
+    localStorage.setItem('weight_loss_current_user', payload.u);
+    
+    if (typeof puter !== 'undefined' && puter.kv && navigator.onLine) {
+      puterKvSetWithTimeout('easyslim_global_accounts', JSON.stringify(accounts)).catch(err => {
+        console.error('Failed to sync accounts to cloud on device import', err);
+      });
+    }
+    
+    loadData();
+    
+    const loginOverlay = document.getElementById('authOverlay');
+    if (loginOverlay) {
+      showToast(appState.language === 'en' ? 'Syncing user profile...' : '正在同步云端个人档案...');
+    }
+    syncDataWithCloud().then(() => {
+      closeModal('deviceImportModal');
+      checkAuthStatus();
+      updateUI();
+      checkProfileRequirement();
+      showToast(`🎉 成功从同步码导入账号：${payload.u}！`);
+    }).catch(err => {
+      console.error(err);
+      closeModal('deviceImportModal');
+      checkAuthStatus();
+      updateUI();
+      checkProfileRequirement();
+      showToast(`🎉 成功导入账号：${payload.u}（数据正在后台下载中）`);
+    });
+    
+  } catch (err) {
+    console.error('Import failed', err);
+    errEl.innerText = '❌ 同步密匙解析失败，请检查是否完整复制且无多余空格';
+    errEl.style.display = 'block';
+  }
+}
+window.handleDeviceImportConfirm = handleDeviceImportConfirm;
+
 // 退出当前登录账号
 function logout() {
   if (confirm('确定要退出当前登录的账号吗？')) {
