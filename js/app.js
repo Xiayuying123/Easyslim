@@ -526,6 +526,8 @@ function routeTab(tabId) {
     renderAnalyticsPage();
   } else if (tabId === 'community') {
     renderCommunityPage();
+  } else if (tabId === 'profileCenter') {
+    renderProfileCenterPage();
   }
 }
 
