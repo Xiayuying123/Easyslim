@@ -5,6 +5,106 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>轻盈减重助手 - 高颜值智能健康追踪应用</title>
   
+  <!-- Global Emergency Error Handler for Self-Repair (Safe Mode) -->
+  <script>
+    (function() {
+      window.addEventListener('error', function(event) {
+        console.error("Captured global error:", event.error);
+        showEmergencyUI(event.error);
+      });
+      window.addEventListener('unhandledrejection', function(event) {
+        console.error("Captured promise rejection:", event.reason);
+        showEmergencyUI(event.reason);
+      });
+
+      function showEmergencyUI(error) {
+        try {
+          let overlay = document.getElementById('emergencyRecoveryOverlay');
+          if (overlay) return;
+          
+          const renderOverlay = () => {
+            let overlay = document.getElementById('emergencyRecoveryOverlay');
+            if (overlay) return;
+            overlay = document.createElement('div');
+            overlay.id = 'emergencyRecoveryOverlay';
+            overlay.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background-color:rgba(15,23,42,0.95); z-index:999999; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; color:#f8fafc; font-family:system-ui,-apple-system,sans-serif; text-align:center;';
+            
+            const container = document.createElement('div');
+            container.style.cssText = 'max-width:500px; background-color:#1e293b; border-radius:16px; padding:30px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); border:1px solid #334155;';
+            
+            const errMsg = error ? (error.stack || error.message || error) : 'Unknown Runtime Error';
+            
+            container.innerHTML = `
+              <div style="font-size: 48px; margin-bottom: 16px;">🛡️</div>
+              <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 12px; color: #f1f5f9;">系统运行异常 (Safe Mode)</h3>
+              <p style="font-size: 14px; color: #94a3b8; margin-bottom: 20px; line-height: 1.6;">
+                很抱歉，程序在运行或同步时遇到了异常。为了防止您的减重数据丢失，已自动为您开启安全修复模式。
+              </p>
+              <div style="background-color: #0f172a; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 11px; color: #f43f5e; text-align: left; max-height: 120px; overflow-y: auto; margin-bottom: 24px; border: 1px solid #1e293b; word-break: break-all;">
+                ${errMsg}
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button id="emergencyReloadBtn" style="background: linear-gradient(135deg, #06b6d4, #0891b2); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px;">
+                  🔄 重新加载页面
+                </button>
+                <button id="emergencyResetBtn" style="background: #ef4444; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px;">
+                  ⚠️ 清除缓存并强制重置
+                </button>
+                <button id="emergencyBackupBtn" style="background: #334155; color: white; border: none; padding: 10px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 13px;">
+                  💾 导出当前本地数据备份
+                </button>
+              </div>
+              <textarea id="emergencyBackupArea" style="display: none; width: 100%; height: 120px; margin-top: 16px; background: #0f172a; color: #94a3b8; border: 1px solid #334155; border-radius: 8px; padding: 8px; font-family: monospace; font-size: 11px;"></textarea>
+            `;
+            
+            overlay.appendChild(container);
+            document.body.appendChild(overlay);
+            
+            document.getElementById('emergencyReloadBtn').addEventListener('click', () => {
+              window.location.reload();
+            });
+            
+            document.getElementById('emergencyResetBtn').addEventListener('click', () => {
+              if (confirm('确定要清除所有本地缓存数据吗？这将重置应用。如果有云端备份，您可以在重新登录后恢复数据。')) {
+                localStorage.clear();
+                sessionStorage.clear();
+                if ('serviceWorker' in navigator) {
+                  navigator.serviceWorker.getRegistrations().then(regs => {
+                    for (let r of regs) r.unregister();
+                  });
+                }
+                if ('caches' in window) {
+                  caches.keys().then(keys => {
+                    for (let k of keys) caches.delete(k);
+                  });
+                }
+                setTimeout(() => {
+                  window.location.reload(true);
+                }, 500);
+              }
+            });
+            
+            document.getElementById('emergencyBackupBtn').addEventListener('click', () => {
+              const area = document.getElementById('emergencyBackupArea');
+              area.style.display = 'block';
+              area.value = JSON.stringify(localStorage);
+              area.select();
+              alert('已将本地 LocalStorage 原始数据导出至下方文本框，请双击全选复制保存！');
+            });
+          };
+
+          if (document.body) {
+            renderOverlay();
+          } else {
+            window.addEventListener('DOMContentLoaded', renderOverlay);
+          }
+        } catch (e) {
+          console.error("Failed to render emergency UI:", e);
+        }
+      }
+    })();
+  </script>
+  
   <!-- iOS PWA meta tags -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -16,7 +116,7 @@
   <link rel="stylesheet" href="css/style.css">
   
   <!-- Puter.js for Keyless AI Integration -->
-  <script src="https://js.puter.com/v2/"></script>
+  <script src="https://js.puter.com/v2/" async></script>
 </head>
 <body>
 
@@ -1280,7 +1380,7 @@
   <!-- Scripts -->
   <script src="js/food_db.js"></script>
   <script src="js/recipes.js"></script>
-  <script src="js/app.js?v=36"></script>
+  <script src="js/app.js?v=37"></script>
   
   <script>
     // 绑定饮食记录里的单餐选择 Tab 事件

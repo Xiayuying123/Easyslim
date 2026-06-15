@@ -642,7 +642,9 @@ function adjustDate(offset) {
   updateUI();
   
   // 如果在食谱或者分析页面，也顺便刷新
-  const activeTab = document.querySelector('.nav-item.active').getAttribute('data-tab-target');
+  const activeTab = document.querySelector('.nav-item.active')?.getAttribute('data-tab-target') || 
+                    document.querySelector('.mobile-nav-item.active')?.getAttribute('data-tab-target') || 
+                    'dashboard';
   if (activeTab === 'recipe') renderRecipePage();
   if (activeTab === 'analytics') renderAnalyticsPage();
 }
@@ -750,7 +752,9 @@ function updateTextRecord(type, value) {
   }
   saveData();
   // 仅刷新部分 UI，不需要全页刷新重绘图表，除非是在 Sheet 页
-  const activeTab = document.querySelector('.nav-item.active').getAttribute('data-tab-target');
+  const activeTab = document.querySelector('.nav-item.active')?.getAttribute('data-tab-target') || 
+                    document.querySelector('.mobile-nav-item.active')?.getAttribute('data-tab-target') || 
+                    'dashboard';
   if (activeTab === 'sheet') renderSheetPage();
 }
 
@@ -3349,7 +3353,9 @@ function importData(e) {
         saveData();
         updateUI();
         
-        const activeTab = document.querySelector('.nav-item.active').getAttribute('data-tab-target');
+        const activeTab = document.querySelector('.nav-item.active')?.getAttribute('data-tab-target') || 
+                          document.querySelector('.mobile-nav-item.active')?.getAttribute('data-tab-target') || 
+                          'dashboard';
         if (activeTab === 'sheet') renderSheetPage();
         if (activeTab === 'analytics') renderAnalyticsPage();
         
