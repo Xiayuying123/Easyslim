@@ -446,6 +446,18 @@ function initAppEvents() {
     const pass = document.getElementById('registerPass').value.trim();
     handleRegister(user, pass);
   });
+
+  // 忘记密码链接点击事件
+  const forgotBtn = document.getElementById('forgotPasswordBtn');
+  if (forgotBtn) {
+    forgotBtn.addEventListener('click', handleForgotPassword);
+  }
+
+  // 密保密码修改表单提交
+  const secForm = document.getElementById('securityForm');
+  if (secForm) {
+    secForm.addEventListener('submit', handleSaveSecurity);
+  }
 }
 
 // 切换选项卡
@@ -2828,6 +2840,9 @@ function handleRegister(username, password) {
   const errEl = document.getElementById('registerError');
   errEl.style.display = 'none';
   
+  const question = document.getElementById('registerQuestion').value.trim();
+  const answer = document.getElementById('registerAnswer').value.trim();
+  
   if (username.length < 2) {
     errEl.innerText = '❌ 账号名称不能少于 2 位';
     errEl.style.display = 'block';
@@ -2835,6 +2850,11 @@ function handleRegister(username, password) {
   }
   if (password.length < 4) {
     errEl.innerText = '❌ 密码不能少于 4 位';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (!question || !answer) {
+    errEl.innerText = '❌ 请填写密保提示问题与答案';
     errEl.style.display = 'block';
     return;
   }
@@ -2859,7 +2879,12 @@ function handleRegister(username, password) {
     localStorage.removeItem('weight_loss_remember_password');
   }
   
-  accounts.push({ username, password });
+  accounts.push({ 
+    username, 
+    password, 
+    securityQuestion: question, 
+    securityAnswer: answer 
+  });
   localStorage.setItem('weight_loss_accounts', JSON.stringify(accounts));
   localStorage.setItem('weight_loss_current_user', username);
   
@@ -2869,6 +2894,119 @@ function handleRegister(username, password) {
   checkProfileRequirement();
   
   showToast(`🎉 注册成功！欢迎使用，${username}！`);
+}
+
+function handleForgotPassword(e) {
+  e.preventDefault();
+  const username = document.getElementById('loginUser').value.trim();
+  const lang = appState.language || 'zh';
+  
+  if (!username) {
+    showToast(lang === 'en' ? 'Please enter your username first!' : '请先在输入框中输入您的账号名称！');
+    return;
+  }
+  
+  const accountsStr = localStorage.getItem('weight_loss_accounts');
+  const accounts = accountsStr ? JSON.parse(accountsStr) : [];
+  const userAcc = accounts.find(x => x.username.toLowerCase() === username.toLowerCase());
+  
+  if (!userAcc) {
+    showToast(lang === 'en' ? 'Username not found!' : '该账号未注册！');
+    return;
+  }
+  
+  if (!userAcc.securityQuestion || !userAcc.securityAnswer) {
+    alert(lang === 'en' 
+      ? 'This account was created before security questions were introduced. Please contact support or register a new account.' 
+      : '该账号为密保启用前的旧账户，未设置安全问答。请联系管理员或注册新账户。');
+    return;
+  }
+  
+  const promptMsg = lang === 'en'
+    ? `[Security Question]: ${userAcc.securityQuestion}\n\nPlease enter the answer:`
+    : `【密保问题】：${userAcc.securityQuestion}\n\n请输入答案：`;
+    
+  const userAnswer = prompt(promptMsg);
+  if (userAnswer === null) return;
+  
+  if (userAnswer.trim().toLowerCase() === userAcc.securityAnswer.toLowerCase()) {
+    alert(lang === 'en'
+      ? `Verification successful!\nYour password is: ${userAcc.password}\nLogging you in now...`
+      : `验证成功！\n您的登录密码是：${userAcc.password}\n正在为您自动登录...`);
+      
+    localStorage.setItem('weight_loss_current_user', userAcc.username);
+    
+    const remember = document.getElementById('loginRemember').checked;
+    if (remember) {
+      localStorage.setItem('weight_loss_remember_username', userAcc.username);
+      localStorage.setItem('weight_loss_remember_password', userAcc.password);
+    }
+    
+    loadData();
+    checkAuthStatus();
+    updateUI();
+    checkProfileRequirement();
+  } else {
+    alert(lang === 'en' ? 'Incorrect answer! Verification failed.' : '密保答案不正确！验证失败。');
+  }
+}
+
+function openSecurityModal() {
+  if (!appState.currentUser) return;
+  const accountsStr = localStorage.getItem('weight_loss_accounts');
+  const accounts = accountsStr ? JSON.parse(accountsStr) : [];
+  const userAcc = accounts.find(x => x.username.toLowerCase() === appState.currentUser.toLowerCase());
+  
+  if (!userAcc) return;
+  
+  document.getElementById('secUsername').value = userAcc.username;
+  document.getElementById('secPassword').value = userAcc.password;
+  document.getElementById('secQuestion').value = userAcc.securityQuestion || '';
+  document.getElementById('secAnswer').value = userAcc.securityAnswer || '';
+  document.getElementById('secError').style.display = 'none';
+  
+  openModal('securityModal');
+}
+window.openSecurityModal = openSecurityModal;
+
+function handleSaveSecurity(e) {
+  e.preventDefault();
+  const username = document.getElementById('secUsername').value;
+  const newPass = document.getElementById('secPassword').value.trim();
+  const question = document.getElementById('secQuestion').value.trim();
+  const answer = document.getElementById('secAnswer').value.trim();
+  const errEl = document.getElementById('secError');
+  const lang = appState.language || 'zh';
+  
+  if (newPass.length < 4) {
+    errEl.innerText = lang === 'en' ? '❌ Password must be at least 4 characters' : '❌ 密码不能少于 4 位';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (!question || !answer) {
+    errEl.innerText = lang === 'en' ? '❌ Please fill out both security question and answer' : '❌ 请填写密保问题与答案';
+    errEl.style.display = 'block';
+    return;
+  }
+  
+  const accountsStr = localStorage.getItem('weight_loss_accounts');
+  const accounts = accountsStr ? JSON.parse(accountsStr) : [];
+  const userIndex = accounts.findIndex(x => x.username.toLowerCase() === username.toLowerCase());
+  
+  if (userIndex > -1) {
+    accounts[userIndex].password = newPass;
+    accounts[userIndex].securityQuestion = question;
+    accounts[userIndex].securityAnswer = answer;
+    localStorage.setItem('weight_loss_accounts', JSON.stringify(accounts));
+    
+    const remUser = localStorage.getItem('weight_loss_remember_username');
+    if (remUser && remUser.toLowerCase() === username.toLowerCase()) {
+      localStorage.setItem('weight_loss_remember_password', newPass);
+    }
+    
+    closeModal('securityModal');
+    showToast(lang === 'en' ? 'Credentials updated successfully!' : '🔑 账号密保设置修改成功！');
+  }
 }
 
 // 退出当前登录账号
@@ -3591,6 +3729,7 @@ const UI_TRANSLATIONS = {
     analysisChartBedtime: '睡前体重',
     analysisProfileTitle: '我的个人身体档案',
     analysisProfileEdit: '修改指标',
+    analysisProfileSecurity: '密码设置',
     analysisProfileLogout: '退出登录',
     analysisLogsTitle: '历史记录日志',
     analysisSyncTitle: '📲 数据多端迁移与同步备份',
@@ -3733,6 +3872,7 @@ const UI_TRANSLATIONS = {
     analysisChartBedtime: 'Bedtime Weight',
     analysisProfileTitle: 'My Personal Profile',
     analysisProfileEdit: 'Edit Profile',
+    analysisProfileSecurity: 'Security',
     analysisProfileLogout: 'Logout',
     analysisLogsTitle: 'History Logs',
     analysisSyncTitle: '📲 Data Migration & Sync',
@@ -4031,6 +4171,8 @@ function applyLanguage() {
   if (profileCardTitle) profileCardTitle.innerText = dict.analysisProfileTitle;
   const profileEditBtn = document.getElementById('analyticsProfileDetails').parentNode.querySelector('.card-title button:first-of-type');
   if (profileEditBtn) profileEditBtn.innerText = dict.analysisProfileEdit;
+  const profileSecBtn = document.getElementById('analyticsProfileDetails').parentNode.querySelector('.card-title button:nth-of-type(2)');
+  if (profileSecBtn) profileSecBtn.innerText = dict.analysisProfileSecurity;
   const profileLogoutBtn = document.getElementById('analyticsProfileDetails').parentNode.querySelector('.card-title button:last-of-type');
   if (profileLogoutBtn) profileLogoutBtn.innerText = dict.analysisProfileLogout;
   
