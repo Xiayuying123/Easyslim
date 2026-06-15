@@ -351,6 +351,12 @@ function initAppEvents() {
     renderParsedFoods();
     updateUI();
     
+    // 触发每日饮食记录打卡积分
+    if (typeof awardPoints === 'function') {
+      awardPoints('daily_diet', 10, appState.language === 'en' ? 'Logged a meal' : '记录一餐真实饮食');
+      checkWeeklyChallenge();
+    }
+    
     // 自动弹窗提示或切回主面板
     showToast('饮食记录已成功存入！');
   });
@@ -361,6 +367,12 @@ function initAppEvents() {
     saveProfile();
   });
 
+  // 社区发帖打卡
+  const postForm = document.getElementById('communityPostForm');
+  if (postForm) {
+    postForm.addEventListener('submit', handlePublishPost);
+  }
+
   // 重新生成食谱按钮
   document.getElementById('regenerateRecipeBtn').addEventListener('click', () => {
     if (!appState.profile) return;
@@ -368,7 +380,16 @@ function initAppEvents() {
     const targetKcal = getDailyTargetCalories(appState.currentDate);
     const series = appState.profile.recipeSeries || 'water_oil';
     const cuisine = record.cuisine || appState.profile.preferredCuisine || 'chinese';
-    record.recipe = window.generateDailyRecipes(targetKcal, series, record.checkedMeals, getActualMealsCalories(record), cuisine);
+    
+    // 获取当前正展示的食谱名以进行去重
+    const excludeNames = [];
+    if (record.recipe) {
+      if (record.recipe.breakfast && record.recipe.breakfast.name) excludeNames.push(record.recipe.breakfast.name);
+      if (record.recipe.lunch && record.recipe.lunch.name) excludeNames.push(record.recipe.lunch.name);
+      if (record.recipe.dinner && record.recipe.dinner.name) excludeNames.push(record.recipe.dinner.name);
+    }
+    
+    record.recipe = window.generateDailyRecipes(targetKcal, series, record.checkedMeals, getActualMealsCalories(record), cuisine, excludeNames);
     saveData();
     renderRecipePage();
     updateUI();
@@ -445,6 +466,8 @@ function routeTab(tabId) {
     renderSheetPage();
   } else if (tabId === 'analytics') {
     renderAnalyticsPage();
+  } else if (tabId === 'community') {
+    renderCommunityPage();
   }
 }
 
@@ -550,6 +573,13 @@ function updateWeightRecord(type, value) {
   }
   saveData();
   updateUI();
+  
+  if (value !== null && value > 0) {
+    if (typeof awardPoints === 'function') {
+      awardPoints('daily_weight', 10, appState.language === 'en' ? 'Logged daily weight' : '完成每日体重登记');
+      checkWeeklyChallenge();
+    }
+  }
 }
 
 // 更新运动、备注等文本数据
@@ -667,7 +697,11 @@ function saveProfile() {
   const bmrTdee = window.calculateBMRAndTDEE(currentWeight, height, age, gender, activityLevel);
   const targetCals = window.calculateTargetCalories(currentWeight, targetWeight, durationMonths, bmrTdee);
   
+  const existingPoints = (appState.profile && appState.profile.points) !== undefined ? appState.profile.points : 0;
+  const existingUnlocked = (appState.profile && appState.profile.unlockedFeatures) || [];
+  const existingPointsLog = (appState.profile && appState.profile.pointsLog) || [];
   const existingStartDate = (appState.profile && appState.profile.startDate) || getTodayString();
+  
   appState.profile = {
     height,
     initialWeight: currentWeight,
@@ -690,8 +724,17 @@ function saveProfile() {
     recipeSeries,
     fastingStartHour,
     fastingDays,
-    preferredCuisine
+    preferredCuisine,
+    // 积分与解锁状态保留
+    points: existingPoints,
+    unlockedFeatures: existingUnlocked,
+    pointsLog: existingPointsLog
   };
+
+  // 触发首次设置目标积分奖励
+  if (typeof awardPoints === 'function') {
+    awardPoints('profile_bonus', 50, appState.language === 'en' ? 'First goal configuration' : '首次配置减重目标指标');
+  }
   
   // 重新对今天生成推荐食谱 (根据最新的模式和食谱系列)
   const record = getOrCreateTodayRecord();
@@ -979,6 +1022,11 @@ function updateUI() {
   // 5. 渲染今日食谱极简卡片
   adjustRecipeCaloriesBasedOnIntake(record);
   renderDashboardRecipeQuickView(record.recipe);
+  
+  // 6. 更新积分商城与UI状态
+  if (typeof updatePointsUI === 'function') {
+    updatePointsUI();
+  }
 }
 
 // 仪表盘上的今日食谱极简版
@@ -2034,6 +2082,353 @@ function renderSheetPage() {
   });
 }
 
+// ==============================================
+// COMMUNITY SANDBOX ENGINE (本地社区仿真引擎)
+// ==============================================
+
+const MOCK_COMMUNITY_POSTS = [
+  {
+    id: 'post_mock_1',
+    user: 'coach_chen',
+    nickname: '教练小陈 (Coach Chen)',
+    avatar: '陈',
+    badge: 'coach',
+    time: '2 hours ago',
+    timeZh: '2小时前',
+    content: '大家早上好！今天给各位推荐一个高效动作：开合跳 3 组 + 波比跳 2 组。锻炼完记得补充蛋白质，多喝温水促进代谢！加油！',
+    likes: ['salad_queen', 'med_diet_expert'],
+    comments: [
+      {
+        user: 'salad_queen',
+        badge: 'expert',
+        nickname: '沙拉女王 (Salad Queen)',
+        text: '收到！今天正好吃了煎蛋白和脱脂牛奶，能量满满！'
+      }
+    ]
+  },
+  {
+    id: 'post_mock_2',
+    user: 'salad_queen',
+    nickname: '沙拉女王 (Salad Queen)',
+    avatar: '沙',
+    badge: 'expert',
+    time: '4 hours ago',
+    timeZh: '4小时前',
+    content: '今天中午自制了彩虹鸡丝牛油果温沙拉 🥑🥗。用脱脂希腊酸奶代替了沙拉酱，热量直接少了一半！口感还特别清爽，非常推荐给大家！',
+    likes: ['coach_chen'],
+    comments: []
+  },
+  {
+    id: 'post_mock_3',
+    user: 'water_oil_master',
+    nickname: '焖菜达人李姐 (Sister Li)',
+    avatar: '李',
+    badge: 'expert',
+    time: 'Yesterday',
+    timeZh: '昨天',
+    content: '打卡今日的水油焖西兰花鸡片。水油焖法真的是减脂绝配，少油又不干巴，娃娃菜焖出来甜甜的，吃完太饱腹了。推荐大家都试试水油焖菜系列！',
+    likes: ['coach_chen', 'salad_queen'],
+    comments: [
+      {
+        user: 'coach_chen',
+        badge: 'coach',
+        nickname: '教练小陈 (Coach Chen)',
+        text: '少油少盐的水油焖菜确实非常符合《居民膳食指南》餐盘比例，点赞！'
+      }
+    ]
+  }
+];
+
+function getOrCreateCommunityPosts() {
+  const saved = localStorage.getItem('weight_loss_community_posts');
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch (e) {
+      console.error('Failed to parse community posts', e);
+    }
+  }
+  localStorage.setItem('weight_loss_community_posts', JSON.stringify(MOCK_COMMUNITY_POSTS));
+  return JSON.parse(JSON.stringify(MOCK_COMMUNITY_POSTS));
+}
+
+function saveCommunityPosts(posts) {
+  localStorage.setItem('weight_loss_community_posts', JSON.stringify(posts));
+}
+
+function renderCommunityPage() {
+  const container = document.getElementById('communityFeedContainer');
+  if (!container) return;
+  container.innerHTML = '';
+  
+  const posts = getOrCreateCommunityPosts();
+  const lang = appState.language || 'zh';
+  const currentUser = appState.currentUser || 'Guest';
+  
+  posts.forEach(post => {
+    const isLiked = post.likes.includes(currentUser);
+    const likeBtnClass = isLiked ? 'post-action-btn liked' : 'post-action-btn';
+    
+    // Attachments section HTML
+    let attachHtml = '';
+    if (post.attachment) {
+      let itemsHtml = '';
+      if (post.attachment.weight) {
+        itemsHtml += `
+          <div class="post-attachment-item">
+            <span>⚖️</span>
+            <span>${lang === 'en' ? 'Weight' : '体重'}: <strong>${post.attachment.weight}</strong></span>
+          </div>
+        `;
+      }
+      if (post.attachment.diet) {
+        itemsHtml += `
+          <div class="post-attachment-item">
+            <span>🍳</span>
+            <span>${lang === 'en' ? 'Diet' : '今日摄入'}: <strong>${post.attachment.diet}</strong></span>
+          </div>
+        `;
+      }
+      if (post.attachment.exercise) {
+        itemsHtml += `
+          <div class="post-attachment-item">
+            <span>🏃</span>
+            <span>${lang === 'en' ? 'Exercise' : '运动'}: <strong>${post.attachment.exercise}</strong></span>
+          </div>
+        `;
+      }
+      
+      if (itemsHtml) {
+        attachHtml = `<div class="post-attachment-box">${itemsHtml}</div>`;
+      }
+    }
+    
+    // Comments section HTML
+    let commentsHtml = '';
+    if (post.comments && post.comments.length > 0) {
+      const listHtml = post.comments.map(c => {
+        let badgeHtml = '';
+        if (c.badge === 'coach') {
+          badgeHtml = `<span class="post-comment-user-badge coach">${lang === 'en' ? 'COACH' : '教练'}</span>`;
+        } else if (c.badge === 'expert') {
+          badgeHtml = `<span class="post-comment-user-badge expert">${lang === 'en' ? 'EXPERT' : '达人'}</span>`;
+        } else if (c.badge === 'me') {
+          badgeHtml = `<span class="post-comment-user-badge me" style="background:rgba(16,185,129,0.15); color:var(--primary);">${lang === 'en' ? 'ME' : '我'}</span>`;
+        }
+        
+        return `
+          <div class="post-comment-item">
+            <span class="post-comment-user">${c.nickname || c.user}</span>
+            ${badgeHtml}
+            <span class="post-comment-text">: ${c.text}</span>
+          </div>
+        `;
+      }).join('');
+      
+      commentsHtml = `<div class="post-comments-section">${listHtml}</div>`;
+    }
+    
+    const displayTime = lang === 'en' ? post.time : (post.timeZh || post.time);
+    
+    let badgeLabel = '';
+    if (post.badge === 'coach') badgeLabel = `<span class="post-badge coach">${lang === 'en' ? 'COACH' : '教练'}</span>`;
+    else if (post.badge === 'expert') badgeLabel = `<span class="post-badge expert">${lang === 'en' ? 'EXPERT' : '达人'}</span>`;
+    else if (post.badge === 'me' || post.user === currentUser) badgeLabel = `<span class="post-badge me">${lang === 'en' ? 'ME' : '我'}</span>`;
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="post-header">
+        <div class="post-avatar">${post.avatar || post.user.substring(0, 2).toUpperCase()}</div>
+        <div class="post-user-info">
+          <div class="post-username">
+            <span>${post.nickname || post.user}</span>
+            ${badgeLabel}
+          </div>
+          <div class="post-time">${displayTime}</div>
+        </div>
+      </div>
+      <div class="post-content">${post.content}</div>
+      ${attachHtml}
+      <div class="post-actions">
+        <button class="${likeBtnClass}" onclick="togglePostLike('${post.id}')">
+          <span>❤️</span>
+          <span class="like-count">${post.likes.length}</span>
+        </button>
+        <div style="display:flex; align-items:center; gap:4px;">
+          <span>💬</span>
+          <span>${post.comments ? post.comments.length : 0}</span>
+        </div>
+      </div>
+      ${commentsHtml}
+    `;
+    container.appendChild(card);
+  });
+}
+
+function togglePostLike(postId) {
+  const currentUser = appState.currentUser || 'Guest';
+  const posts = getOrCreateCommunityPosts();
+  const post = posts.find(p => p.id === postId);
+  if (!post) return;
+  
+  const idx = post.likes.indexOf(currentUser);
+  if (idx > -1) {
+    post.likes.splice(idx, 1);
+  } else {
+    post.likes.push(currentUser);
+  }
+  
+  saveCommunityPosts(posts);
+  renderCommunityPage();
+}
+window.togglePostLike = togglePostLike;
+
+function handlePublishPost(e) {
+  e.preventDefault();
+  if (!appState.profile) {
+    showToast(appState.language === 'en' ? 'Configure profile before sharing posts!' : '请先设置身体指标再进行打卡分享！');
+    return;
+  }
+  
+  const contentEl = document.getElementById('communityPostContent');
+  const content = contentEl.value.trim();
+  if (!content) {
+    showToast(appState.language === 'en' ? 'Please input post content!' : '请输入打卡分享心得！');
+    return;
+  }
+  
+  const record = getOrCreateTodayRecord();
+  const lang = appState.language || 'zh';
+  const currentUser = appState.currentUser;
+  
+  const attachment = {};
+  
+  const attachWeight = document.getElementById('postAttachWeight').checked;
+  const attachDiet = document.getElementById('postAttachDiet').checked;
+  const attachExercise = document.getElementById('postAttachExercise').checked;
+  
+  // 1. Weight attachment
+  if (attachWeight && (record.morningWeight || record.bedtimeWeight)) {
+    const parts = [];
+    if (record.morningWeight) parts.push(lang === 'en' ? `Morning: ${record.morningWeight}kg` : `晨重: ${record.morningWeight}kg`);
+    if (record.bedtimeWeight) parts.push(lang === 'en' ? `Bedtime: ${record.bedtimeWeight}kg` : `晚重: ${record.bedtimeWeight}kg`);
+    if (record.morningWeight && record.bedtimeWeight) {
+      const diff = (record.bedtimeWeight - record.morningWeight).toFixed(1);
+      parts.push(lang === 'en' ? `Diff: +${diff}kg` : `温差: +${diff}kg`);
+    }
+    attachment.weight = parts.join(' | ');
+  }
+  
+  // 2. Diet attachment
+  if (attachDiet) {
+    const parts = [];
+    const meals = ['breakfast', 'lunch', 'dinner'];
+    meals.forEach(m => {
+      if (record.meals && record.meals[m] && record.meals[m].length > 0) {
+        const mealTitle = m === 'breakfast' ? (lang === 'en' ? 'BF' : '早') : m === 'lunch' ? (lang === 'en' ? 'LH' : '午') : (lang === 'en' ? 'DN' : '晚');
+        parts.push(`${mealTitle}: ${summarizeMeal(record.meals[m])}`);
+      }
+    });
+    const extraCals = getActualMealsCalories(record).extra || 0;
+    if (extraCals > 0) {
+      parts.push(lang === 'en' ? `Extra: ${extraCals}kcal` : `加餐: ${extraCals}大卡`);
+    }
+    
+    // Add total recipe calories vs target calories
+    const targetKcal = getDailyTargetCalories(appState.currentDate);
+    const actualCals = getActualMealsCalories(record);
+    const eatenSum = (actualCals.breakfast || 0) + (actualCals.lunch || 0) + (actualCals.dinner || 0) + (actualCals.extra || 0);
+    parts.push(lang === 'en' ? `Total Intake: ${eatenSum}/${targetKcal}kcal` : `今日摄入: ${eatenSum}/${targetKcal}大卡`);
+    
+    if (parts.length > 0) {
+      attachment.diet = parts.join(' | ');
+    }
+  }
+  
+  // 3. Exercise attachment
+  if (attachExercise && record.exercise) {
+    attachment.exercise = record.exercise;
+  }
+  
+  const newPost = {
+    id: 'post_' + Date.now(),
+    user: currentUser,
+    nickname: currentUser,
+    avatar: currentUser.substring(0, 2).toUpperCase(),
+    badge: 'me',
+    time: 'Just now',
+    timeZh: '刚刚',
+    content: content,
+    likes: [],
+    comments: [],
+    attachment: Object.keys(attachment).length > 0 ? attachment : null
+  };
+  
+  const posts = getOrCreateCommunityPosts();
+  posts.unshift(newPost); // Add to top
+  saveCommunityPosts(posts);
+  
+  contentEl.value = '';
+  renderCommunityPage();
+  
+  if (!navigator.onLine) {
+    showToast(lang === 'en' 
+      ? '⚠️ Offline: Post saved locally as draft, will sync once online!' 
+      : '⚠️ 离线状态：发布内容已保存至本地，联网后将自动同步！');
+  } else {
+    showToast(lang === 'en' ? 'Shared successfully!' : '发布打卡成功！');
+  }
+  
+  // 触发每日社区分享积分奖励
+  if (typeof awardPoints === 'function') {
+    awardPoints('daily_community', 15, lang === 'en' ? 'Shared progress in community' : '发布社区打卡分享');
+    checkWeeklyChallenge();
+  }
+  
+  // Trigger AI mock comment after 1.5s
+  setTimeout(() => {
+    const updatedPosts = getOrCreateCommunityPosts();
+    const targetPost = updatedPosts.find(p => p.id === newPost.id);
+    if (!targetPost) return;
+    
+    // Select a random AI companion to comment
+    const companions = [
+      { name: 'coach_chen', nickname: '教练小陈 (Coach Chen)', badge: 'coach' },
+      { name: 'salad_queen', nickname: '沙拉女王 (Salad Queen)', badge: 'expert' },
+      { name: 'water_oil_master', nickname: '焖菜达人李姐 (Sister Li)', badge: 'expert' }
+    ];
+    const aiComp = companions[Math.floor(Math.random() * companions.length)];
+    
+    // Dynamic comment based on post attachment
+    let commentText = lang === 'en' ? "Amazing progress, keep it up!" : "打卡姿势满分！今天又是元气满满的减脂一天，继续加油！";
+    
+    if (newPost.attachment) {
+      if (newPost.attachment.weight && newPost.attachment.weight.includes('-')) {
+        commentText = lang === 'en' ? "Weight drop looks amazing! Make sure to keep hydrating." : "体重掉的很顺畅，继续保持这个节奏，多喝温水哦！";
+      } else if (newPost.attachment.diet && (newPost.attachment.diet.includes('水油') || newPost.attachment.diet.includes('焖'))) {
+        commentText = lang === 'en' ? "Water-oil braising is a great choice! Clean eating works wonders." : "水油焖菜搭配的真赞，少油健康饱腹感强，减脂必备！";
+      } else if (newPost.attachment.exercise) {
+        commentText = lang === 'en' ? "Nice workout check-in! Rest well and recover." : "有氧/无氧打卡太棒了，结合合理膳食，减脂事半功倍！";
+      }
+    }
+    
+    targetPost.comments.push({
+      user: aiComp.name,
+      badge: aiComp.badge,
+      nickname: aiComp.nickname,
+      text: commentText
+    });
+    
+    saveCommunityPosts(updatedPosts);
+    // If we're still on the community tab, re-render
+    const activeTab = document.querySelector('.nav-item.active')?.getAttribute('data-tab-target');
+    if (activeTab === 'community') {
+      renderCommunityPage();
+    }
+  }, 1500);
+}
+
 // 打开弹窗
 function openModal(modalId) {
   document.getElementById(modalId).classList.add('active');
@@ -2069,7 +2464,27 @@ function openModal(modalId) {
     const preferredCuisine = appState.profile.preferredCuisine || 'chinese';
     
     document.getElementById('pDietPattern').value = dietPattern;
-    document.getElementById('pRecipeSeries').value = recipeSeries;
+    
+    // 动态生成食谱系列选项 (隐藏/显示已购的高级食谱包)
+    const pRecipeSeries = document.getElementById('pRecipeSeries');
+    const unlocked = appState.profile.unlockedFeatures || [];
+    const lang = appState.language || 'zh';
+    
+    pRecipeSeries.innerHTML = `
+      <option value="water_oil">${lang === 'en' ? 'Water-Oil Series' : '水油焖菜系列 (Water-Oil)'}</option>
+      <option value="salad">${lang === 'en' ? 'Light Salad Series' : '轻食沙拉系列 (Salad)'}</option>
+      <option value="keto">${lang === 'en' ? 'Low-Carb Keto Series' : '低碳生酮系列 (Keto)'}</option>
+      <option value="mediterranean">${lang === 'en' ? 'Mediterranean Diet' : '地中海膳食系列 (MedDiet)'}</option>
+    `;
+    
+    if (unlocked.includes('diet_pack_extreme')) {
+      pRecipeSeries.innerHTML += `
+        <option value="extreme_water_oil">${lang === 'en' ? '14-Day Model Extreme Water-Oil' : '14天超模极速上镜水油焖 (Extreme Water-Oil)'}</option>
+        <option value="muscle_keto">${lang === 'en' ? 'Muscle-Saving Keto Plan' : '生酮防掉肌计划 (Muscle-Saving Keto)'}</option>
+      `;
+    }
+    
+    pRecipeSeries.value = recipeSeries;
     document.getElementById('pFastingStartHour').value = fastingStartHour;
     document.getElementById('pCuisine').value = preferredCuisine;
     
@@ -3007,6 +3422,7 @@ const UI_TRANSLATIONS = {
     navRecipe: '健康食谱',
     navSheet: '计划总览',
     navAnalytics: '数据分析',
+    navCommunity: '社群分享',
     btnProfile: '设置减重目标',
     btnLogout: '🚪 退出当前账号',
     headerTitlePrefix: '智能卡路里 & 水油焖菜食谱定制 | 👤 账号: ',
@@ -3148,6 +3564,7 @@ const UI_TRANSLATIONS = {
     navRecipe: 'Recipes',
     navSheet: 'Plan Sheet',
     navAnalytics: 'Analytics',
+    navCommunity: 'Community',
     btnProfile: 'Set Target',
     btnLogout: '🚪 Logout',
     headerTitlePrefix: 'Smart Calorie & Recipe Customization | 👤 Account: ',
@@ -3314,7 +3731,8 @@ function applyLanguage() {
     eat: dict.navEat,
     recipe: dict.navRecipe,
     sheet: dict.navSheet,
-    analytics: dict.navAnalytics
+    analytics: dict.navAnalytics,
+    community: dict.navCommunity
   };
   
   sidebarNavs.forEach(btn => {
@@ -3330,7 +3748,8 @@ function applyLanguage() {
     eat: lang === 'en' ? 'Diet' : '饮食',
     recipe: lang === 'en' ? 'Recipe' : '食谱',
     sheet: lang === 'en' ? 'Sheet' : '总览',
-    analytics: lang === 'en' ? 'Data' : '数据'
+    analytics: lang === 'en' ? 'Data' : '数据',
+    community: lang === 'en' ? 'Community' : '社区'
   };
   mobileNavs.forEach(btn => {
     const tabId = btn.getAttribute('data-tab-target');
@@ -3697,4 +4116,901 @@ function applyLanguage() {
   if (recipeGoalText) recipeGoalText.innerText = lang === 'en' ? 'Daily Target:' : '每日目标:';
   const recipeActualText = document.getElementById('recipeActualText');
   if (recipeActualText) recipeActualText.innerText = lang === 'en' ? 'Current Recipes:' : '当前食谱:';
+
+  // Community Translations
+  const communityPostTitle = document.getElementById('communityPostTitle');
+  if (communityPostTitle) communityPostTitle.innerText = lang === 'en' ? 'Share Today\'s Progress' : '发表今日减脂打卡';
+  const communityContentLabel = document.getElementById('communityContentLabel');
+  if (communityContentLabel) communityContentLabel.innerText = lang === 'en' ? 'Share your thoughts or mood for today...' : '分享你的今日减脂心得或心情...';
+  const postAttachWeightText = document.getElementById('postAttachWeightText');
+  if (postAttachWeightText) postAttachWeightText.innerText = lang === 'en' ? 'Attach today\'s weight' : '附带今日体重数据';
+  const postAttachDietText = document.getElementById('postAttachDietText');
+  if (postAttachDietText) postAttachDietText.innerText = lang === 'en' ? 'Attach today\'s diet logs' : '附带今日饮食记录';
+  const postAttachExerciseText = document.getElementById('postAttachExerciseText');
+  if (postAttachExerciseText) postAttachExerciseText.innerText = lang === 'en' ? 'Attach today\'s exercise' : '附带今日运动内容';
+  const btnPublishPost = document.getElementById('btnPublishPost');
+  if (btnPublishPost) btnPublishPost.innerText = lang === 'en' ? 'Share Post' : '发表打卡';
+  const postContentIn = document.getElementById('communityPostContent');
+  if (postContentIn) postContentIn.placeholder = lang === 'en' ? 'Today\'s water-oil chicken was delicious, and weight dropped by 0.3kg!' : '今天的水油焖鸡胸肉非常好吃，体重也掉了 0.3kg！';
+
+  // AI Clinic Card Translations
+  const aiClinicTitle = document.getElementById('aiClinicTitle');
+  if (aiClinicTitle) aiClinicTitle.innerText = lang === 'en' ? '🤖 AI Nutrition Clinic' : '🤖 AI 营养诊疗室';
+  const aiClinicDesc = document.getElementById('aiClinicDesc');
+  if (aiClinicDesc) aiClinicDesc.innerText = lang === 'en' ? 'Based on your past 7 days logs, AI nutritionist will generate a highly personalized metabolic diagnostic and dietary advice weekly report.' : '基于过去7天您的晨晚体重走势、日平均卡路里赤字率与运动记录，由大模型为您开具一份量身定制的深度代谢修复与膳食调整诊断周报。';
+  const btnTriggerAiReport = document.getElementById('btnTriggerAiReport');
+  if (btnTriggerAiReport) btnTriggerAiReport.innerText = lang === 'en' ? 'Generate Weekly Report' : '生成本周 AI 诊断报告';
+
+  // Points Mall Translations
+  const pointsModalTitle = document.getElementById('pointsModalTitle');
+  if (pointsModalTitle) pointsModalTitle.innerText = lang === 'en' ? 'Points Center & Shop' : '积分成长与兑换中心';
+  const ptsCurrentLabel = document.getElementById('ptsCurrentLabel');
+  if (ptsCurrentLabel) ptsCurrentLabel.innerText = lang === 'en' ? 'Available Points Balance' : '当前可用减脂积分';
+  const btnBuyPts = document.getElementById('btnBuyPts');
+  if (btnBuyPts) btnBuyPts.innerText = lang === 'en' ? 'Buy Points (￥1 = 10 Pts)' : '充值获取积分 (￥1 = 10 Pts)';
+  const ptsTasksLabel = document.getElementById('ptsTasksLabel');
+  if (ptsTasksLabel) ptsTasksLabel.innerText = lang === 'en' ? 'Daily Growth Tasks (Earn)' : '每日成长任务 (积分赚取)';
+  const ptsShopLabel = document.getElementById('ptsShopLabel');
+  if (ptsShopLabel) ptsShopLabel.innerText = lang === 'en' ? 'Feature Shop (Redeem)' : '积分特权商店 (功能解锁)';
+
+  // AI Diagnostic Report Modal Translations
+  const aiReportModalTitle = document.getElementById('aiReportModalTitle');
+  if (aiReportModalTitle) aiReportModalTitle.innerText = lang === 'en' ? 'AI Diagnostic Assessment Report' : 'AI 专属营养师诊断评估报告';
+  const aiReportLoadingText = document.getElementById('aiReportLoadingText');
+  if (aiReportLoadingText) aiReportLoadingText.innerText = lang === 'en' ? 'AI is fetching past 7 days logs, analyzing metabolism trends, please wait...' : 'AI 正在调阅您过去7天的体重及饮食记录，深度分析代谢走势中，请稍候...';
+  const btnAiReportClose = document.getElementById('btnAiReportClose');
+  if (btnAiReportClose) btnAiReportClose.innerText = lang === 'en' ? 'Close Report' : '关闭报告';
+  const btnAiReportPdf = document.getElementById('btnAiReportPdf');
+  if (btnAiReportPdf) btnAiReportPdf.innerText = lang === 'en' ? '📥 Export PDF / Print' : '📥 导出 PDF / 打印报告';
 }
+
+// ==========================================
+// 🪙 POINTS SYSTEM & GAMEPLAY FUNCTIONS
+// ==========================================
+function awardPoints(type, amount, desc) {
+  if (!appState.profile) return;
+  if (!appState.profile.pointsLog) appState.profile.pointsLog = [];
+  if (appState.profile.points === undefined) appState.profile.points = 0;
+  
+  const today = getTodayString();
+  
+  // Check duplicates for one-time bonuses
+  if (type === 'register_bonus' || type === 'profile_bonus') {
+    const exists = appState.profile.pointsLog.some(log => log.type === type);
+    if (exists) return;
+  } else if (type === 'daily_weight' || type === 'daily_diet' || type === 'daily_community') {
+    const existsToday = appState.profile.pointsLog.some(log => log.date === today && log.type === type);
+    if (existsToday) return;
+  } else if (type === 'weekly_challenge') {
+    const existsToday = appState.profile.pointsLog.some(log => log.date === today && log.type === type);
+    if (existsToday) return;
+  }
+  
+  appState.profile.points += amount;
+  appState.profile.pointsLog.push({
+    date: today,
+    type: type,
+    change: amount,
+    desc: desc
+  });
+  
+  saveData();
+  updatePointsUI();
+  
+  const lang = appState.language || 'zh';
+  showToast(lang === 'en' ? `+${amount} Points: ${desc}` : `积分 +${amount}：${desc}`);
+}
+window.awardPoints = awardPoints;
+
+function checkWeeklyChallenge() {
+  if (!appState.profile) return;
+  
+  const today = getTodayString();
+  const pointsLog = appState.profile.pointsLog || [];
+  
+  // Find if weekly challenge was already completed in the last 7 days
+  const latestWeeklyAward = pointsLog.filter(log => log.type === 'weekly_challenge')
+                                      .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+  if (latestWeeklyAward) {
+    const msDiff = new Date(today) - new Date(latestWeeklyAward.date);
+    const daysDiff = msDiff / (1000 * 60 * 60 * 24);
+    if (daysDiff < 7) {
+      return; // Cycle not complete
+    }
+  }
+  
+  // Check if we have logs for the last 7 consecutive days (including today)
+  let consecutiveDays = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    const rec = appState.records[dateStr];
+    if (rec) {
+      const hasWeight = rec.morningWeight || rec.bedtimeWeight;
+      const hasDiet = rec.meals && (
+        (rec.meals.breakfast && rec.meals.breakfast.length > 0) ||
+        (rec.meals.lunch && rec.meals.lunch.length > 0) ||
+        (rec.meals.dinner && rec.meals.dinner.length > 0)
+      );
+      if (hasWeight || hasDiet) {
+        consecutiveDays++;
+      } else {
+        break;
+      }
+    } else {
+      break;
+    }
+  }
+  
+  if (consecutiveDays === 7) {
+    awardPoints('weekly_challenge', 50, appState.language === 'en' ? '7-day active streak completed!' : '连续7天打卡健身挑战成功！');
+  }
+}
+window.checkWeeklyChallenge = checkWeeklyChallenge;
+
+function updatePointsUI() {
+  if (!appState.profile) return;
+  const lang = appState.language || 'zh';
+  const points = appState.profile.points !== undefined ? appState.profile.points : 0;
+  const unlocked = appState.profile.unlockedFeatures || [];
+  
+  // 1. Sidebar button
+  const sidebarBtn = document.getElementById('sidebarPointsBtn');
+  if (sidebarBtn) {
+    sidebarBtn.innerText = lang === 'en' ? `Points Mall (${points} Pts)` : `积分商城 (${points} Pts)`;
+  }
+  
+  // 2. Points balance in modal
+  const balanceEl = document.getElementById('ptsUserBalance');
+  if (balanceEl) {
+    balanceEl.innerHTML = `${points} <span style="font-size:16px; font-weight:600;">Pts</span>`;
+  }
+  
+  // 3. AI Clinic status
+  const clinicStatusEl = document.getElementById('aiClinicStatusText');
+  if (clinicStatusEl) {
+    const isUnlocked = unlocked.includes('weekly_ai_report');
+    clinicStatusEl.innerHTML = isUnlocked
+      ? `<span style="color:var(--primary); font-weight:600;">已激活本周诊断权限</span>`
+      : `<span style="color:#f59e0b; font-weight:600;">需要消耗 50 积分生成报告</span>`;
+    
+    if (lang === 'en') {
+      clinicStatusEl.innerHTML = isUnlocked
+        ? `<span style="color:var(--primary); font-weight:600;">Activated for this week</span>`
+        : `<span style="color:#f59e0b; font-weight:600;">Costs 50 Pts to generate</span>`;
+    }
+  }
+  
+  // 4. Render Tasks List
+  const tasksContainer = document.getElementById('pointsTasksContainer');
+  if (tasksContainer) {
+    tasksContainer.innerHTML = '';
+    const today = getTodayString();
+    const record = appState.records[today];
+    const pointsLog = appState.profile.pointsLog || [];
+    
+    const hasWeight = record && (record.morningWeight || record.bedtimeWeight);
+    const hasDiet = record && record.meals && (
+      (record.meals.breakfast && record.meals.breakfast.length > 0) ||
+      (record.meals.lunch && record.meals.lunch.length > 0) ||
+      (record.meals.dinner && record.meals.dinner.length > 0)
+    );
+    const hasPost = pointsLog.some(log => log.date === today && log.type === 'daily_community');
+    
+    // Streak progress
+    let streakCount = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const rec = appState.records[dateStr];
+      if (rec && (rec.morningWeight || rec.bedtimeWeight || (rec.meals && (
+        (rec.meals.breakfast && rec.meals.breakfast.length > 0) ||
+        (rec.meals.lunch && rec.meals.lunch.length > 0) ||
+        (rec.meals.dinner && rec.meals.dinner.length > 0)
+      )))) {
+        streakCount++;
+      } else {
+        break;
+      }
+    }
+    
+    const tasks = [
+      {
+        id: 'daily_weight',
+        name: lang === 'en' ? 'Log Daily Weight' : '每日体重记录打卡',
+        points: 10,
+        completed: hasWeight,
+        desc: lang === 'en' ? 'Log morning or bedtime weight' : '输入清晨空腹或睡前放松体重'
+      },
+      {
+        id: 'daily_diet',
+        name: lang === 'en' ? 'Log a Meal' : '每日饮食打卡记录',
+        points: 10,
+        completed: hasDiet,
+        desc: lang === 'en' ? 'Record breakfast, lunch, or dinner' : '记录任意一餐真实摄入的饮食内容'
+      },
+      {
+        id: 'daily_community',
+        name: lang === 'en' ? 'Share in Community' : '社区发表打卡分享',
+        points: 15,
+        completed: hasPost,
+        desc: lang === 'en' ? 'Share today\'s weight/diet in community' : '在社区广场发布一条带有身体指标的打卡贴'
+      },
+      {
+        id: 'weekly_challenge',
+        name: lang === 'en' ? '7-Day Workout Streak' : '连续7天健身挑战（周日常）',
+        points: 50,
+        completed: pointsLog.some(log => log.type === 'weekly_challenge' && (new Date(today) - new Date(log.date)) / (1000 * 60 * 60 * 24) < 7),
+        desc: lang === 'en' ? `Streak: ${streakCount}/7 days` : `打卡进度: ${streakCount}/7天（连续记录体重或饮食）`
+      }
+    ];
+    
+    tasks.forEach(t => {
+      const taskDiv = document.createElement('div');
+      taskDiv.style = "display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); border:1px solid var(--border-color); border-radius:12px; padding:10px 14px; font-size:13px;";
+      taskDiv.innerHTML = `
+        <div>
+          <div style="font-weight:600; color:var(--text-main); display:flex; align-items:center; gap:6px;">
+            <span>${t.completed ? '✅' : '⏳'}</span>
+            <span>${t.name}</span>
+            <span style="font-size:11px; color:#f59e0b;">+${t.points} Pts</span>
+          </div>
+          <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${t.desc}</div>
+        </div>
+        <div>
+          ${t.completed ? `<span style="color:var(--primary); font-weight:600;">${lang === 'en' ? 'Done' : '已完成'}</span>` : `<span style="color:var(--text-muted);">${lang === 'en' ? 'Active' : '进行中'}</span>`}
+        </div>
+      `;
+      tasksContainer.appendChild(taskDiv);
+    });
+  }
+  
+  // 5. Render Shop List
+  const shopContainer = document.getElementById('pointsShopContainer');
+  if (shopContainer) {
+    shopContainer.innerHTML = '';
+    const shopItems = [
+      {
+        key: 'weekly_ai_report',
+        name: lang === 'en' ? 'AI Nutritionist Weekly Diagnostic Report' : 'AI专属营养师深度诊断周报',
+        points: 50,
+        desc: lang === 'en' ? 'Analyze past 7 days logs and output professional health insights' : '一键分析过去7天的体重及饮食，生成Gemini深度诊断与后续策略'
+      },
+      {
+        key: 'diet_pack_extreme',
+        name: lang === 'en' ? '14-Day Rapid Fat Loss Diet Pack' : '14天极速减脂特训食谱包',
+        points: 150,
+        desc: lang === 'en' ? 'Unlock special "Rapid Braised" and "Keto Pro" recipe categories' : '一次性解锁“14天超模极速上镜水油焖方案”和“生酮防掉肌计划”'
+      },
+      {
+        key: 'cloud_sync',
+        name: lang === 'en' ? 'Cloud Sync & Multi-device Connection' : '云端自动同步与防丢失备份功能',
+        points: 200,
+        desc: lang === 'en' ? 'Enable automatic background cloud sync with Puter DB' : '开启后每次记录自动云端实时同步，多设备登录数据永不丢失'
+      }
+    ];
+    
+    shopItems.forEach(item => {
+      const isUnlocked = unlocked.includes(item.key);
+      const itemDiv = document.createElement('div');
+      itemDiv.style = "display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); border:1px solid var(--border-color); border-radius:12px; padding:12px 14px; font-size:13px; gap: 12px;";
+      
+      let actionBtn = '';
+      if (isUnlocked) {
+        if (item.key === 'weekly_ai_report') {
+          actionBtn = `<button class="btn btn-primary btn-sm" onclick="openAiReport()" style="padding:4px 10px; font-size:11px; border-radius:8px;">${lang === 'en' ? 'Generate' : '生成报告'}</button>`;
+        } else {
+          actionBtn = `<span style="color:var(--primary); font-weight:600; font-size:12px;">✅ ${lang === 'en' ? 'Unlocked' : '已解锁'}</span>`;
+        }
+      } else {
+        actionBtn = `<button class="btn btn-primary btn-sm" onclick="redeemFeature('${item.key}', ${item.points})" style="background:var(--primary); border-color:transparent; color:#fff; padding:4px 10px; font-size:11px; border-radius:8px; white-space:nowrap;">${lang === 'en' ? `Redeem ${item.points} Pts` : `${item.points} 积分兑换`}</button>`;
+      }
+      
+      itemDiv.innerHTML = `
+        <div style="flex-grow:1;">
+          <div style="font-weight:600; color:var(--text-main);">${item.name}</div>
+          <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${item.desc}</div>
+        </div>
+        <div style="flex-shrink:0;">
+          ${actionBtn}
+        </div>
+      `;
+      shopContainer.appendChild(itemDiv);
+    });
+  }
+}
+window.updatePointsUI = updatePointsUI;
+
+function buyPoints() {
+  const lang = appState.language || 'zh';
+  const text = lang === 'en' 
+    ? 'Enter recharge amount (￥1 = 10 Points):' 
+    : '请输入充值金额 (元) 进行测试充值 (￥1 = 10 积分)：';
+  const amountStr = prompt(text, '10');
+  if (amountStr === null) return;
+  const amount = parseInt(amountStr);
+  if (isNaN(amount) || amount <= 0) {
+    showToast(lang === 'en' ? 'Invalid amount!' : '请输入有效金额！');
+    return;
+  }
+  
+  const pointsAwarded = amount * 10;
+  if (!appState.profile.pointsLog) appState.profile.pointsLog = [];
+  if (appState.profile.points === undefined) appState.profile.points = 0;
+  
+  appState.profile.points += pointsAwarded;
+  appState.profile.pointsLog.push({
+    date: getTodayString(),
+    type: 'recharge',
+    change: pointsAwarded,
+    desc: lang === 'en' ? `Recharged ￥${amount}` : `微信/支付宝充值￥${amount}元`
+  });
+  
+  saveData();
+  updatePointsUI();
+  showToast(lang === 'en' ? `Successfully recharged ${pointsAwarded} Pts!` : `成功充值 ${pointsAwarded} 积分！`);
+}
+window.buyPoints = buyPoints;
+
+function redeemFeature(key, cost) {
+  const lang = appState.language || 'zh';
+  if (!appState.profile) {
+    showToast(lang === 'en' ? 'Configure profile first!' : '请先配置减脂目标！');
+    return;
+  }
+  const currentPoints = appState.profile.points !== undefined ? appState.profile.points : 0;
+  if (currentPoints < cost) {
+    showToast(lang === 'en' ? 'Insufficient points!' : '积分不足，请先充值或打卡赚取！');
+    return;
+  }
+  
+  // Deduct points
+  appState.profile.points -= cost;
+  if (!appState.profile.unlockedFeatures) appState.profile.unlockedFeatures = [];
+  appState.profile.unlockedFeatures.push(key);
+  
+  if (!appState.profile.pointsLog) appState.profile.pointsLog = [];
+  appState.profile.pointsLog.push({
+    date: getTodayString(),
+    type: 'unlock_feature',
+    change: -cost,
+    desc: lang === 'en' ? `Unlocked feature: ${key}` : `消耗积分兑换特权功能: ${key}`
+  });
+  
+  saveData();
+  updatePointsUI();
+  
+  if (key === 'weekly_ai_report') {
+    showToast(lang === 'en' ? 'Redeemed weekly AI report! Generating now...' : '兑换成功！已开启AI营养师诊断报告，正在加载...');
+    openAiReport();
+  } else if (key === 'diet_pack_extreme') {
+    showToast(lang === 'en' ? 'Unlocked Professional Fat Loss Diet Pack! Go to profile setting to select.' : '特训食谱包解锁成功！去个人中心即可选择全新特别方案。');
+  } else if (key === 'cloud_sync') {
+    showToast(lang === 'en' ? 'Cloud Sync enabled!' : '云端实时同步功能已激活！每次修改都将安全同步至云端！');
+    syncDataWithCloud();
+  }
+}
+window.redeemFeature = redeemFeature;
+
+// ==========================================
+// 🤖 AI CLINIC WEEKLY REPORT FUNCTIONS
+// ==========================================
+function triggerAiReport() {
+  const lang = appState.language || 'zh';
+  if (!appState.profile) {
+    showToast(lang === 'en' ? 'Please set target profile first!' : '请先设置身体档案！');
+    return;
+  }
+  const unlocked = appState.profile.unlockedFeatures || [];
+  const hasUnlocked = unlocked.includes('weekly_ai_report');
+  
+  if (hasUnlocked) {
+    openAiReport();
+  } else {
+    const points = appState.profile.points !== undefined ? appState.profile.points : 0;
+    if (points < 50) {
+      showToast(lang === 'en' ? 'Insufficient points! (Need 50 Pts)' : '积分不足！生成本周报告需要 50 积分，可通过打卡或充值获取。');
+      openModal('pointsModal');
+      return;
+    }
+    
+    const confirmUnlock = confirm(lang === 'en' 
+      ? 'Deduct 50 Pts to generate AI Nutritionist report?' 
+      : '生成本周 AI 专属营养师诊断报告将扣除 50 积分，确认生成吗？');
+      
+    if (confirmUnlock) {
+      redeemFeature('weekly_ai_report', 50);
+    }
+  }
+}
+window.triggerAiReport = triggerAiReport;
+
+function openAiReport() {
+  openModal('aiReportModal');
+  generateAiDiagnosticWeeklyReport();
+}
+window.openAiReport = openAiReport;
+
+async function callActiveAi(promptText) {
+  const provider = (appState.profile && appState.profile.aiProvider) || 'puter';
+  const apiKey = (appState.profile && appState.profile.aiKey) || '';
+  const customUrl = (appState.profile && appState.profile.aiUrl) || '';
+  const customModel = (appState.profile && appState.profile.aiModel) || '';
+  
+  if (provider === 'puter') {
+    if (typeof puter === 'undefined') {
+      throw new Error('Puter AI environment is not ready.');
+    }
+    const response = await puter.ai.chat(promptText, { model: 'gpt-4o-mini' });
+    return response.toString();
+  } else if (provider === 'gemini') {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const requestBody = {
+      contents: [{ parts: [{ text: promptText }] }]
+    };
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData?.error?.message || `Gemini API error status code: ${response.status}`);
+    }
+    const resData = await response.json();
+    return resData.candidates?.[0]?.content?.parts?.[0]?.text;
+  } else if (['deepseek', 'siliconflow', 'custom'].includes(provider)) {
+    let baseUrl = '';
+    let modelName = '';
+
+    if (provider === 'deepseek') {
+      baseUrl = customUrl || 'https://api.deepseek.com/v1';
+      modelName = customModel || 'deepseek-chat';
+    } else if (provider === 'siliconflow') {
+      baseUrl = customUrl || 'https://api.siliconflow.cn/v1';
+      modelName = customModel || 'deepseek-ai/DeepSeek-V3';
+    } else if (provider === 'custom') {
+      baseUrl = customUrl || 'https://api.openai.com/v1';
+      modelName = customModel || 'gpt-4o-mini';
+    }
+
+    const url = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
+    const requestBody = {
+      model: modelName,
+      messages: [{ role: 'user', content: promptText }]
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData?.error?.message || `${provider} API error! Status: ${response.status}`);
+    }
+    const resData = await response.json();
+    return resData.choices?.[0]?.message?.content;
+  } else {
+    throw new Error('Unsupported AI provider');
+  }
+}
+
+function generateAiDiagnosticWeeklyReport() {
+  const lang = appState.language || 'zh';
+  const container = document.getElementById('aiReportContentContainer');
+  const pdfBtn = document.getElementById('btnAiReportPdf');
+  
+  if (!container) return;
+  if (pdfBtn) pdfBtn.style.display = 'none';
+  
+  container.innerHTML = `
+    <div style="text-align:center; padding:40px;" id="aiReportLoadingSpinner">
+      <span style="font-size:32px; display:inline-block; animation: spin 2s linear infinite; font-family: emoji;">🔄</span>
+      <p style="margin-top:12px; font-weight:600; color:var(--text-main);" id="aiReportLoadingText">
+        ${lang === 'en' 
+          ? 'AI is fetching past 7 days logs, analyzing metabolism trends, please wait...' 
+          : 'AI 正在调阅您过去7天的体重及饮食记录，深度分析代谢走势中，请稍候...'}
+      </p>
+    </div>
+  `;
+  
+  // Assemble history
+  const history = [];
+  const today = new Date(appState.currentDate);
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    const rec = appState.records[dateStr] || {};
+    
+    let eaten = 0;
+    if (rec.meals) {
+      const actual = getActualMealsCalories(rec);
+      eaten = (actual.breakfast || 0) + (actual.lunch || 0) + (actual.dinner || 0) + (actual.extra || 0);
+    }
+    
+    history.push({
+      date: dateStr,
+      morningWeight: rec.morningWeight || 'N/A',
+      bedtimeWeight: rec.bedtimeWeight || 'N/A',
+      caloriesEaten: eaten,
+      caloriesTarget: getDailyTargetCalories(dateStr),
+      exercise: rec.exercise || 'None'
+    });
+  }
+  
+  // Check online status
+  if (!navigator.onLine) {
+    setTimeout(() => {
+      renderLocalDiagnosticReport(history);
+    }, 1500);
+    return;
+  }
+  
+  const promptText = `
+    You are an expert sports nutritionist and weight loss coach. Analyze the following 7-day weight and diet log for client ${appState.currentUser}.
+    Client Profile:
+    - Height: ${appState.profile.height} cm
+    - Age: ${appState.profile.age}
+    - Gender: ${appState.profile.gender}
+    - Current Calorie Budget: ${appState.profile.targetCalories} kcal
+    - Preferred Cuisine: ${appState.profile.preferredCuisine}
+    - Weight Loss Target: ${appState.profile.targetWeight} kg
+    
+    7-Day History:
+    ${JSON.stringify(history, null, 2)}
+    
+    Please output a detailed report in HTML format. Use beautiful styled elements (like badges, tables, lists, alerts) to highlight findings.
+    The report should include:
+    1. Metabolism Assessment (analyse morning/bedtime weight gap, rate of weight loss).
+    2. Calorie and Macronutrient Analysis (analyse calorie deficit consistency, whether they are eating too little or too much).
+    3. Exercise and recovery feedback.
+    4. Actionable adjustments for next week (specific diet tips, water-oil recipes recommendations, exercise adjustments).
+    
+    Keep the report highly encouraging, professional, and visually engaging.
+    Please output the report in language: ${lang === 'en' ? 'English' : 'Chinese'}.
+    ONLY return the HTML code block content (no markdown wrap, just raw HTML text).
+  `;
+  
+  callActiveAi(promptText)
+    .then(htmlResponse => {
+      let cleanHtml = htmlResponse.replace(/^```html\s*|\s*```$/gi, '').trim();
+      container.innerHTML = cleanHtml;
+      if (pdfBtn) pdfBtn.style.display = 'block';
+    })
+    .catch(err => {
+      console.error('AI generation failed, fallback to local', err);
+      renderLocalDiagnosticReport(history);
+    });
+}
+window.generateAiDiagnosticWeeklyReport = generateAiDiagnosticWeeklyReport;
+
+function renderLocalDiagnosticReport(history) {
+  const lang = appState.language || 'zh';
+  const container = document.getElementById('aiReportContentContainer');
+  const pdfBtn = document.getElementById('btnAiReportPdf');
+  if (!container) return;
+  
+  let totalEaten = 0;
+  let totalTarget = 0;
+  let weightChange = 0;
+  let weightGapSum = 0;
+  let weightGapCount = 0;
+  let exerciseCount = 0;
+  
+  let firstWeight = null;
+  let lastWeight = null;
+  
+  history.forEach(day => {
+    if (day.caloriesEaten > 0) {
+      totalEaten += day.caloriesEaten;
+      totalTarget += day.caloriesTarget;
+    }
+    if (day.morningWeight !== 'N/A') {
+      const w = parseFloat(day.morningWeight);
+      if (firstWeight === null) firstWeight = w;
+      lastWeight = w;
+    }
+    if (day.morningWeight !== 'N/A' && day.bedtimeWeight !== 'N/A') {
+      const morning = parseFloat(day.morningWeight);
+      const bedtime = parseFloat(day.bedtimeWeight);
+      weightGapSum += (bedtime - morning);
+      weightGapCount++;
+    }
+    if (day.exercise && day.exercise !== 'None' && day.exercise !== '') {
+      exerciseCount++;
+    }
+  });
+  
+  if (firstWeight !== null && lastWeight !== null) {
+    weightChange = lastWeight - firstWeight;
+  }
+  
+  const avgEaten = totalTarget > 0 ? Math.round(totalEaten / history.length) : 0;
+  const avgTarget = totalTarget > 0 ? Math.round(totalTarget / history.length) : 1800;
+  const avgGap = weightGapCount > 0 ? (weightGapSum / weightGapCount).toFixed(2) : null;
+  
+  let html = '';
+  if (lang === 'zh') {
+    let weightStatus = '数据不足';
+    if (weightChange < 0) weightStatus = `<span style="color:#10b981; font-weight:700;">稳步下降 ${Math.abs(weightChange).toFixed(1)}kg</span>`;
+    else if (weightChange > 0) weightStatus = `<span style="color:#ef4444; font-weight:700;">略有上涨 ${weightChange.toFixed(1)}kg</span>`;
+    else if (firstWeight !== null) weightStatus = `<span style="color:var(--text-muted);">体重持平</span>`;
+    
+    let gapStatus = '待观察';
+    let gapAdvice = '请保持早晚称重习惯，早晚体重差是代谢的指示剂。';
+    if (avgGap !== null) {
+      const gapVal = parseFloat(avgGap);
+      if (gapVal >= 0.5 && gapVal <= 1.0) {
+        gapStatus = '🔥 代谢极其健康 (黄金区间)';
+        gapAdvice = '您的早晚体重温差保持在 0.5kg ~ 1.0kg 之间，说明白天的食物摄入能够被高效代谢，夜间燃脂效率高。继续保持！';
+      } else if (gapVal > 1.0) {
+        gapStatus = '⚠️ 晚餐偏重或排水较少';
+        gapAdvice = '早晚体重差超过 1.0kg，可能是晚餐碳水或钠盐摄入过多导致体内水分滞留。建议晚餐清淡，少吃高盐外卖。';
+      } else {
+        gapStatus = '💡 能量亏空或水分不足';
+        gapAdvice = '早晚差小于 0.5kg，可能是白天进食量过少或运动消耗极大，身体进入节能模式，需补充蛋白质以维持肌肉量。';
+      }
+    }
+    
+    let dietStatus = '正常';
+    let dietAdvice = '饮食卡路里符合预期，继续根据食谱定制进食。';
+    if (avgEaten > 0) {
+      if (avgEaten < avgTarget * 0.8) {
+        dietStatus = '⚠️ 摄入过低';
+        dietAdvice = '实际平均卡路里摄入低于目标的80%。极低卡路里容易导致基础代谢受损，建议按时吃满推荐食谱中的水油焖菜。';
+      } else if (avgEaten > avgTarget * 1.1) {
+        dietStatus = '⚠️ 预算超标';
+        dietAdvice = '实际平均卡路里超出预算。需要控制餐后加餐或降低外食频次。若吃饱了可以不用勉强吃满食谱。';
+      }
+    }
+    
+    html = `
+      <div style="font-family:inherit; color:var(--text-main); display:flex; flex-direction:column; gap:16px;">
+        <div style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.2); border-radius:16px; padding:16px;">
+          <h3 style="margin-top:0; color:var(--primary); font-size:16px; font-weight:700;">📊 本周健康代谢分析报告 (本地诊断)</h3>
+          <p style="font-size:12px; color:var(--text-muted); margin:4px 0 0 0;">(注：当前处于离线模式或AI握手失败，已切换至本地代谢诊断引擎)</p>
+        </div>
+        
+        <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left; background:rgba(0,0,0,0.1); border-radius:12px; overflow:hidden;">
+          <thead>
+            <tr style="background:rgba(255,255,255,0.03); border-bottom:1px solid var(--border-color);">
+              <th style="padding:10px 14px; color:var(--text-muted);">指标</th>
+              <th style="padding:10px 14px; color:var(--text-muted);">本周数据</th>
+              <th style="padding:10px 14px; color:var(--text-muted);">代谢状态评估</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border-color);">
+              <td style="padding:10px 14px; font-weight:600;">体重趋势</td>
+              <td style="padding:10px 14px;">${firstWeight !== null ? `${firstWeight}kg → ${lastWeight}kg` : '无数据'}</td>
+              <td style="padding:10px 14px;">${weightStatus}</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border-color);">
+              <td style="padding:10px 14px; font-weight:600;">早晚温差</td>
+              <td style="padding:10px 14px;">${avgGap !== null ? `${avgGap} kg` : '数据不足'}</td>
+              <td style="padding:10px 14px;">${gapStatus}</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border-color);">
+              <td style="padding:10px 14px; font-weight:600;">饮食热量</td>
+              <td style="padding:10px 14px;">已吃 ${avgEaten} / 目标 ${avgTarget} kcal</td>
+              <td style="padding:10px 14px;">${dietStatus}</td>
+            </tr>
+            <tr>
+              <td style="padding:10px 14px; font-weight:600;">运动频次</td>
+              <td style="padding:10px 14px;">${exerciseCount} 天打卡</td>
+              <td style="padding:10px 14px;">${exerciseCount >= 3 ? '<span style="color:#10b981;">良好</span>' : '<span style="color:#f59e0b;">偏少</span>'}</td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border-color); border-radius:16px; padding:16px;">
+          <h4 style="margin:0 0 8px 0; font-size:14px; font-weight:700; color:var(--text-main);">📌 身体调整与膳食指导建议</h4>
+          <ul style="margin:0; padding-left:20px; font-size:13px; color:var(--text-muted); line-height:1.6; display:flex; flex-direction:column; gap:8px;">
+            <li><strong>代谢反馈：</strong>${gapAdvice}</li>
+            <li><strong>营养干预：</strong>${dietAdvice}</li>
+            <li><strong>运动建议：</strong>当前打卡运动 ${exerciseCount} 次。建议每周保持至少 3-4 次中等强度有氧运动（如快走、慢跑），配合每天推荐的精细水油焖菜进行能量缓冲。</li>
+          </ul>
+        </div>
+      </div>
+    `;
+  } else {
+    let weightStatus = 'N/A';
+    if (weightChange < 0) weightStatus = `<span style="color:#10b981; font-weight:700;">Drop ${Math.abs(weightChange).toFixed(1)}kg</span>`;
+    else if (weightChange > 0) weightStatus = `<span style="color:#ef4444; font-weight:700;">Gain ${weightChange.toFixed(1)}kg</span>`;
+    else if (firstWeight !== null) weightStatus = `<span style="color:var(--text-muted);">Stable</span>`;
+    
+    let gapStatus = 'Awaiting data';
+    let gapAdvice = 'Keep logging morning/bedtime weight to analyze metabolism.';
+    if (avgGap !== null) {
+      const gapVal = parseFloat(avgGap);
+      if (gapVal >= 0.5 && gapVal <= 1.0) {
+        gapStatus = '🔥 Very Active Metabolism';
+        gapAdvice = 'Your morning-bedtime gap stays within 0.5kg - 1.0kg. This indicates highly efficient daytime burning. Keep it up!';
+      } else if (gapVal > 1.0) {
+        gapStatus = '⚠️ Dinner is too heavy';
+        gapAdvice = 'The gap exceeds 1.0kg, likely due to heavy dinner carb or sodium intake. Try lighter dinners with less takeout food.';
+      } else {
+        gapStatus = '💡 Sparing Metabolism / Dehydrated';
+        gapAdvice = 'Gap is under 0.5kg. Your body might be in energy-saving mode because of low intake. Ensure enough protein intake.';
+      }
+    }
+    
+    let dietStatus = 'Normal';
+    let dietAdvice = 'Your calorie intake aligns with the target. Keep following the recommended meal ratios.';
+    if (avgEaten > 0) {
+      if (avgEaten < avgTarget * 0.8) {
+        dietStatus = '⚠️ Intake too low';
+        dietAdvice = 'Average calorie intake is below 80% of target budget. Eating too little may harm metabolism. Eat your recommended recipes.';
+      } else if (avgEaten > avgTarget * 1.1) {
+        dietStatus = '⚠️ Budget exceeded';
+        dietAdvice = 'Your average intake exceeds target budget. Watch out for extra snacks or eating out.';
+      }
+    }
+    
+    html = `
+      <div style="font-family:inherit; color:var(--text-main); display:flex; flex-direction:column; gap:16px;">
+        <div style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.2); border-radius:16px; padding:16px;">
+          <h3 style="margin-top:0; color:var(--primary); font-size:16px; font-weight:700;">📊 Weekly Metabolic Analysis (Local Engine)</h3>
+          <p style="font-size:12px; color:var(--text-muted); margin:4px 0 0 0;">(Note: Switched to local metabolic assessment due to network offline status)</p>
+        </div>
+        
+        <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left; background:rgba(0,0,0,0.1); border-radius:12px; overflow:hidden;">
+          <thead>
+            <tr style="background:rgba(255,255,255,0.03); border-bottom:1px solid var(--border-color);">
+              <th style="padding:10px 14px; color:var(--text-muted);">Metric</th>
+              <th style="padding:10px 14px; color:var(--text-muted);">Weekly Data</th>
+              <th style="padding:10px 14px; color:var(--text-muted);">Metabolic Assessment</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border-color);">
+              <td style="padding:10px 14px; font-weight:600;">Weight Trend</td>
+              <td style="padding:10px 14px;">${firstWeight !== null ? `${firstWeight}kg → ${lastWeight}kg` : 'No data'}</td>
+              <td style="padding:10px 14px;">${weightStatus}</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border-color);">
+              <td style="padding:10px 14px; font-weight:600;">Daily Gap</td>
+              <td style="padding:10px 14px;">${avgGap !== null ? `${avgGap} kg` : 'Insufficient data'}</td>
+              <td style="padding:10px 14px;">${gapStatus}</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border-color);">
+              <td style="padding:10px 14px; font-weight:600;">Diet Intake</td>
+              <td style="padding:10px 14px;">Eaten ${avgEaten} / Target ${avgTarget} kcal</td>
+              <td style="padding:10px 14px;">${dietStatus}</td>
+            </tr>
+            <tr>
+              <td style="padding:10px 14px; font-weight:600;">Exercise Logs</td>
+              <td style="padding:10px 14px;">${exerciseCount} days</td>
+              <td style="padding:10px 14px;">${exerciseCount >= 3 ? '<span style="color:#10b981;">Good</span>' : '<span style="color:#f59e0b;">Low</span>'}</td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border-color); border-radius:16px; padding:16px;">
+          <h4 style="margin:0 0 8px 0; font-size:14px; font-weight:700; color:var(--text-main);">📌 Actionable Recommendations</h4>
+          <ul style="margin:0; padding-left:20px; font-size:13px; color:var(--text-muted); line-height:1.6; display:flex; flex-direction:column; gap:8px;">
+            <li><strong>Metabolic Tip:</strong> ${gapAdvice}</li>
+            <li><strong>Nutritional Tip:</strong> ${dietAdvice}</li>
+            <li><strong>Exercise Tip:</strong> You logged exercise ${exerciseCount} times. Try to maintain at least 3-4 moderate-intensity cardio workouts weekly alongside water-oil braised meals.</li>
+          </ul>
+        </div>
+      </div>
+    `;
+  }
+  
+  container.innerHTML = html;
+  if (pdfBtn) pdfBtn.style.display = 'block';
+}
+
+function exportAiReportPdf() {
+  const container = document.getElementById('aiReportContentContainer');
+  if (!container) return;
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Easyslim AI Diagnostic Report</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 40px; color: #333; line-height: 1.6; }
+          h3, h4 { color: #10b981; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 20px; }
+          th, td { border: 1px solid #ddd; padding: 10px 12px; text-align: left; }
+          th { background-color: #f5f5f5; }
+        </style>
+      </head>
+      <body>
+        ${container.innerHTML}
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.print();
+}
+window.exportAiReportPdf = exportAiReportPdf;
+
+// ==========================================
+// 🌐 HYBRID CLOUD SYNC & NETWORK STATUS
+// ==========================================
+async function syncDataWithCloud() {
+  if (!appState.currentUser || !appState.profile) return;
+  if (!appState.profile.unlockedFeatures || !appState.profile.unlockedFeatures.includes('cloud_sync')) return;
+  if (!navigator.onLine) return;
+  if (typeof puter === 'undefined' || !puter.kv) return;
+  
+  const cloudKey = `easyslim_sync_user_${appState.currentUser}`;
+  
+  try {
+    const cloudDataStr = await puter.kv.get(cloudKey);
+    let cloudData = null;
+    if (cloudDataStr) {
+      try {
+        cloudData = JSON.parse(cloudDataStr);
+      } catch (e) {
+        console.error('Failed to parse cloud data', e);
+      }
+    }
+    
+    const localUpdatedAt = appState.profile.updatedAt || 0;
+    const cloudUpdatedAt = (cloudData && cloudData.profile && cloudData.profile.updatedAt) || 0;
+    
+    if (localUpdatedAt > cloudUpdatedAt) {
+      const stateToUpload = {
+        profile: appState.profile,
+        records: appState.records
+      };
+      await puter.kv.set(cloudKey, JSON.stringify(stateToUpload));
+      console.log('Data synced: uploaded local modifications to Puter Cloud.');
+    } else if (cloudUpdatedAt > localUpdatedAt) {
+      appState.profile = cloudData.profile;
+      appState.records = cloudData.records;
+      
+      const stateToSave = {
+        profile: appState.profile,
+        records: appState.records
+      };
+      localStorage.setItem('weight_loss_state_user_' + appState.currentUser, JSON.stringify(stateToSave));
+      
+      updateUI();
+      showToast(appState.language === 'en' ? 'Downloaded updates from Cloud!' : '已从云端同步最新数据！');
+    }
+  } catch (error) {
+    console.error('Cloud synchronization error:', error);
+  }
+}
+window.syncDataWithCloud = syncDataWithCloud;
+
+function updateNetworkStatus() {
+  const banner = document.getElementById('networkStatusBanner');
+  const textEl = document.getElementById('networkStatusText');
+  const lang = appState.language || 'zh';
+  
+  if (!banner) return;
+  
+  if (navigator.onLine) {
+    banner.style.display = 'none';
+    if (appState.currentUser && appState.profile && appState.profile.unlockedFeatures && appState.profile.unlockedFeatures.includes('cloud_sync')) {
+      syncDataWithCloud();
+    }
+  } else {
+    banner.style.display = 'flex';
+    if (textEl) {
+      textEl.innerText = lang === 'en' 
+        ? 'Offline Mode: Cloud Sync & Community publishing are temporarily unavailable. Data will be saved locally.' 
+        : '离线模式：部分功能（云同步、社区发表）不可用，数据将暂存本地';
+    }
+  }
+}
+window.updateNetworkStatus = updateNetworkStatus;
+
+// Register listeners on window load
+window.addEventListener('online', updateNetworkStatus);
+window.addEventListener('offline', updateNetworkStatus);
+setTimeout(updateNetworkStatus, 1000);

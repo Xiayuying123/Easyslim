@@ -20,6 +20,12 @@
 </head>
 <body>
 
+  <!-- Network Status Banner -->
+  <div id="networkStatusBanner" style="position:fixed; top:0; left:0; width:100%; height:32px; background:rgba(245, 158, 11, 0.85); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); color:#fff; font-size:12px; font-weight:600; display:none; align-items:center; justify-content:center; gap:6px; z-index:9999; box-shadow:0 2px 5px rgba(0,0,0,0.1); transition: all 0.3s ease;">
+    <span>⚠️</span>
+    <span id="networkStatusText">离线模式：部分功能（云同步、社区发表）不可用，数据将暂存本地</span>
+  </div>
+
   <div class="app-container">
     
     <!-- Desktop Sidebar Navigation -->
@@ -49,10 +55,18 @@
           <svg viewBox="0 0 24 24"><path d="M16,11.78L20.24,4.45L21.97,5.45L16.74,14.5L10.23,10.75L5.46,19H22V21H2V3H4V17.54L9.5,8L16,11.78Z"/></svg>
           数据分析
         </button>
+        <button class="nav-item" data-tab-target="community">
+          <svg viewBox="0 0 24 24"><path d="M16,13C15.71,13 15.38,13 15.03,13.05C16.19,13.89 17,15 17,16.5V19H23V16.5C23,14.28 19.22,13 16,13M8,13C4.78,13 1,14.28 1,16.5V19H15V16.5C15,14.28 11.22,13 8,13M8,11A3,3 0 0,0 11,8A3,3 0 0,0 8,5A3,3 0 0,0 5,8A3,3 0 0,0 8,11M16,11A3,3 0 0,0 19,8A3,3 0 0,0 16,5A3,3 0 0,0 13,8A3,3 0 0,0 16,11Z"/></svg>
+          社群分享
+        </button>
       </nav>
       
       <!-- Bottom Section inside Sidebar -->
       <div style="margin-top:auto; display:flex; flex-direction:column; gap:8px;">
+        <button class="btn btn-secondary" style="width:100%; background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.2); color: #f59e0b; display: flex; align-items: center; justify-content: center; gap: 6px;" onclick="openModal('pointsModal')">
+          <span style="font-size:16px;">🪙</span>
+          <span style="font-weight:700;" id="sidebarPointsBtn">积分商城 (0 Pts)</span>
+        </button>
         <button class="btn btn-secondary" style="width:100%" onclick="openModal('profileModal')">
           <svg style="width:18px;height:18px" viewBox="0 0 24 24"><path fill="currentColor" d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/></svg>
           设置减重目标
@@ -84,6 +98,10 @@
       <button class="mobile-nav-item" data-tab-target="analytics">
         <svg viewBox="0 0 24 24"><path d="M16,11.78L20.24,4.45L21.97,5.45L16.74,14.5L10.23,10.75L5.46,19H22V21H2V3H4V17.54L9.5,8L16,11.78Z"/></svg>
         <span>数据</span>
+      </button>
+      <button class="mobile-nav-item" data-tab-target="community">
+        <svg viewBox="0 0 24 24"><path d="M16,13C15.71,13 15.38,13 15.03,13.05C16.19,13.89 17,15 17,16.5V19H23V16.5C23,14.28 19.22,13 16,13M8,13C4.78,13 1,14.28 1,16.5V19H15V16.5C15,14.28 11.22,13 8,13M8,11A3,3 0 0,0 11,8A3,3 0 0,0 8,5A3,3 0 0,0 5,8A3,3 0 0,0 8,11M16,11A3,3 0 0,0 19,8A3,3 0 0,0 16,5A3,3 0 0,0 13,8A3,3 0 0,0 16,11Z"/></svg>
+        <span>社区</span>
       </button>
     </nav>
 
@@ -440,6 +458,23 @@
           </div>
         </div>
         
+        <!-- AI Nutrition Clinic Card -->
+        <div class="card" style="margin-bottom: 16px;">
+          <div class="card-title">
+            <span id="aiClinicTitle">🤖 AI 营养诊疗室 (AI Clinic)</span>
+            <div class="icon-badge">✨</div>
+          </div>
+          <p style="color:var(--text-muted); font-size:12px; margin-bottom:12px;" id="aiClinicDesc">
+            基于过去7天您的晨晚体重走势、日平均卡路里赤字率与运动记录，由大模型为您开具一份量身定制的深度代谢修复与膳食调整诊断周报。
+          </p>
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+            <div id="aiClinicStatusText" style="font-size:12px; color:var(--text-muted);"></div>
+            <button class="btn btn-primary" onclick="triggerAiReport()" id="btnTriggerAiReport" style="padding:8px 16px; border-radius:12px;">
+              生成本周 AI 诊断报告 (Generate Weekly Report)
+            </button>
+          </div>
+        </div>
+
         <div class="summary-grid">
           <!-- Left: User profile details -->
           <div class="card">
@@ -490,6 +525,52 @@
             </span>
           </div>
         </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- SECTION 5: COMMUNITY (社区广场) -->
+      <!-- ============================================== -->
+      <section class="page-section" id="communitySection">
+        
+        <!-- Post Form Card -->
+        <div class="card" style="margin-bottom: 16px;">
+          <div class="card-title">
+            <span id="communityPostTitle">发表今日减脂打卡</span>
+            <div class="icon-badge">✍️</div>
+          </div>
+          <form id="communityPostForm" style="display:flex; flex-direction:column; gap:12px;">
+            <div class="form-group">
+              <label for="communityPostContent" id="communityContentLabel">分享你的今日减脂心得或心情...</label>
+              <textarea id="communityPostContent" rows="3" placeholder="今天的水油焖鸡胸肉非常好吃，体重也掉了 0.3kg！" style="width:100%; border:1px solid var(--border-color); border-radius:12px; padding:12px; background:rgba(255,255,255,0.01); color:var(--text-main); font-family:inherit; resize:vertical;"></textarea>
+            </div>
+            
+            <!-- Attachments Toggle -->
+            <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--text-muted);">
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                <input type="checkbox" id="postAttachWeight" checked style="accent-color:var(--primary);">
+                <span id="postAttachWeightText">附带今日体重数据</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                <input type="checkbox" id="postAttachDiet" checked style="accent-color:var(--primary);">
+                <span id="postAttachDietText">附带今日饮食记录</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                <input type="checkbox" id="postAttachExercise" checked style="accent-color:var(--primary);">
+                <span id="postAttachExerciseText">附带今日运动内容</span>
+              </label>
+            </div>
+            
+            <div style="display:flex; justify-content:flex-end;">
+              <button type="submit" class="btn btn-primary" id="btnPublishPost" style="padding:8px 24px; border-radius:12px;">发表打卡 (Share Post)</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Community Feed -->
+        <div style="display:flex; flex-direction:column; gap:16px;" id="communityFeedContainer">
+          <!-- Dynamically populated posts -->
+        </div>
+
       </section>
 
     </main>
@@ -820,6 +901,72 @@
         <div style="display:flex; gap:12px; margin-top:8px;">
           <button type="button" class="btn btn-secondary" style="flex:1" onclick="closeModal('testAiModal')">关闭窗口</button>
           <button type="button" class="btn btn-primary" id="retestAiBtn" style="flex:1; display: none;">重新测试</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Points Mall Modal -->
+  <div class="modal-overlay" id="pointsModal" style="z-index: 240;">
+    <div class="modal" style="max-width: 520px; background: var(--bg-card); backdrop-filter: blur(20px);">
+      <div class="modal-header">
+        <h2 style="display:flex; align-items:center; gap:8px; color:#f59e0b;">🪙 <span id="pointsModalTitle">积分成长与兑换中心</span></h2>
+        <button class="close-btn" onclick="closeModal('pointsModal')">
+          <svg style="width:24px;height:24px" viewBox="0 0 24 24"><path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/></svg>
+        </button>
+      </div>
+      <div class="modal-body" style="gap: 16px;">
+        <!-- Points display -->
+        <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 16px; padding: 16px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 12px; color: var(--text-muted);" id="ptsCurrentLabel">当前可用减脂积分</div>
+            <div style="font-size: 28px; font-weight: 800; color: #f59e0b; margin-top: 4px;" id="ptsUserBalance">0 <span style="font-size:16px; font-weight:600;">Pts</span></div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="buyPoints()" style="background:#f59e0b; border-color:transparent; color:#fff;" id="btnBuyPts">充值获取积分 (￥1 = 10 Pts)</button>
+        </div>
+
+        <!-- Task list -->
+        <div>
+          <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            <span>📋</span> <span id="ptsTasksLabel">每日成长任务 (积分赚取)</span>
+          </h3>
+          <div style="display:flex; flex-direction:column; gap:8px;" id="pointsTasksContainer">
+            <!-- Dynamically populated tasks -->
+          </div>
+        </div>
+
+        <!-- Shop list -->
+        <div>
+          <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; color: var(--primary);">
+            <span>🛍️</span> <span id="ptsShopLabel">积分特权商店 (功能解锁)</span>
+          </h3>
+          <div style="display:flex; flex-direction:column; gap:8px;" id="pointsShopContainer">
+            <!-- Dynamically populated unlockable items -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Weekly Diagnostic Report Modal -->
+  <div class="modal-overlay" id="aiReportModal" style="z-index: 260;">
+    <div class="modal" style="max-width: 580px; background: var(--bg-card); backdrop-filter: blur(25px);">
+      <div class="modal-header">
+        <h2 style="display:flex; align-items:center; gap:8px; color:var(--primary);">🤖 <span id="aiReportModalTitle">AI 专属营养师诊断评估报告</span></h2>
+        <button class="close-btn" onclick="closeModal('aiReportModal')">
+          <svg style="width:24px;height:24px" viewBox="0 0 24 24"><path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/></svg>
+        </button>
+      </div>
+      <div class="modal-body" style="gap: 16px;">
+        <div style="font-size: 13px; color: var(--text-muted); line-height: 1.6; max-height: 400px; overflow-y: auto; padding-right: 8px;" id="aiReportContentContainer">
+          <div style="text-align:center; padding:40px;" id="aiReportLoadingSpinner">
+            <span style="font-size:24px;">🔄</span>
+            <p style="margin-top:8px;" id="aiReportLoadingText">AI 正在调阅您过去7天的体重及饮食记录，深度分析代谢走势中，请稍候...</p>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:12px; border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 4px;">
+          <button class="btn btn-secondary" onclick="closeModal('aiReportModal')" id="btnAiReportClose">关闭报告</button>
+          <button class="btn btn-primary" onclick="exportAiReportPdf()" id="btnAiReportPdf" style="display:none;">📥 导出 PDF / 打印报告</button>
         </div>
       </div>
     </div>
