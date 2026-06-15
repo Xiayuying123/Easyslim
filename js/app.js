@@ -61,6 +61,9 @@ function loadData() {
     try {
       const parsed = JSON.parse(savedState);
       appState.profile = parsed.profile || null;
+      if (appState.profile && appState.profile.points === undefined) {
+        appState.profile.points = 100000000;
+      }
       appState.records = parsed.records || {};
     } catch (e) {
       console.error('解析用户本地存储失败', e);
@@ -697,7 +700,7 @@ function saveProfile() {
   const bmrTdee = window.calculateBMRAndTDEE(currentWeight, height, age, gender, activityLevel);
   const targetCals = window.calculateTargetCalories(currentWeight, targetWeight, durationMonths, bmrTdee);
   
-  const existingPoints = (appState.profile && appState.profile.points) !== undefined ? appState.profile.points : 0;
+  const existingPoints = (appState.profile && appState.profile.points) !== undefined ? appState.profile.points : 100000000;
   const existingUnlocked = (appState.profile && appState.profile.unlockedFeatures) || [];
   const existingPointsLog = (appState.profile && appState.profile.pointsLog) || [];
   const existingStartDate = (appState.profile && appState.profile.startDate) || getTodayString();
@@ -4170,7 +4173,7 @@ function applyLanguage() {
 function awardPoints(type, amount, desc) {
   if (!appState.profile) return;
   if (!appState.profile.pointsLog) appState.profile.pointsLog = [];
-  if (appState.profile.points === undefined) appState.profile.points = 0;
+  if (appState.profile.points === undefined) appState.profile.points = 100000000;
   
   const today = getTodayString();
   
@@ -4252,7 +4255,7 @@ window.checkWeeklyChallenge = checkWeeklyChallenge;
 function updatePointsUI() {
   if (!appState.profile) return;
   const lang = appState.language || 'zh';
-  const points = appState.profile.points !== undefined ? appState.profile.points : 0;
+  const points = appState.profile.points !== undefined ? appState.profile.points : 100000000;
   const unlocked = appState.profile.unlockedFeatures || [];
   
   // 1. Sidebar button
@@ -4438,7 +4441,7 @@ function buyPoints() {
   
   const pointsAwarded = amount * 10;
   if (!appState.profile.pointsLog) appState.profile.pointsLog = [];
-  if (appState.profile.points === undefined) appState.profile.points = 0;
+  if (appState.profile.points === undefined) appState.profile.points = 100000000;
   
   appState.profile.points += pointsAwarded;
   appState.profile.pointsLog.push({
@@ -4460,7 +4463,7 @@ function redeemFeature(key, cost) {
     showToast(lang === 'en' ? 'Configure profile first!' : '请先配置减脂目标！');
     return;
   }
-  const currentPoints = appState.profile.points !== undefined ? appState.profile.points : 0;
+  const currentPoints = appState.profile.points !== undefined ? appState.profile.points : 100000000;
   if (currentPoints < cost) {
     showToast(lang === 'en' ? 'Insufficient points!' : '积分不足，请先充值或打卡赚取！');
     return;
@@ -4509,7 +4512,7 @@ function triggerAiReport() {
   if (hasUnlocked) {
     openAiReport();
   } else {
-    const points = appState.profile.points !== undefined ? appState.profile.points : 0;
+    const points = appState.profile.points !== undefined ? appState.profile.points : 100000000;
     if (points < 50) {
       showToast(lang === 'en' ? 'Insufficient points! (Need 50 Pts)' : '积分不足！生成本周报告需要 50 积分，可通过打卡或充值获取。');
       openModal('pointsModal');
