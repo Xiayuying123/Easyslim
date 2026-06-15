@@ -2496,6 +2496,43 @@ function handlePublishPost(e) {
   }, 1500);
 }
 
+// Puter operation wrappers with timeout to prevent hanging on slow/blocked connections
+function puterKvGetWithTimeout(key, timeoutMs = 4000) {
+  if (typeof puter === 'undefined' || !puter.kv) return Promise.reject(new Error('Puter not ready'));
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('Puter KV Get timed out'));
+    }, timeoutMs);
+    puter.kv.get(key)
+      .then(res => {
+        clearTimeout(timer);
+        resolve(res);
+      })
+      .catch(err => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
+function puterKvSetWithTimeout(key, val, timeoutMs = 4000) {
+  if (typeof puter === 'undefined' || !puter.kv) return Promise.reject(new Error('Puter not ready'));
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('Puter KV Set timed out'));
+    }, timeoutMs);
+    puter.kv.set(key, val)
+      .then(res => {
+        clearTimeout(timer);
+        resolve(res);
+      })
+      .catch(err => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
 async function syncCommunityWithCloud(localPosts = null) {
   if (typeof puter === 'undefined' || !puter.kv) return;
   if (!navigator.onLine) return;
@@ -2503,7 +2540,7 @@ async function syncCommunityWithCloud(localPosts = null) {
   const cloudKey = 'easyslim_global_community_posts';
   
   try {
-    const cloudDataStr = await puter.kv.get(cloudKey);
+    const cloudDataStr = await puterKvGetWithTimeout(cloudKey);
     let cloudPosts = [];
     if (cloudDataStr) {
       try {
@@ -2513,7 +2550,7 @@ async function syncCommunityWithCloud(localPosts = null) {
       }
     } else {
       cloudPosts = JSON.parse(JSON.stringify(MOCK_COMMUNITY_POSTS));
-      await puter.kv.set(cloudKey, JSON.stringify(cloudPosts));
+      await puterKvSetWithTimeout(cloudKey, JSON.stringify(cloudPosts));
     }
     
     if (!localPosts) {
@@ -2567,7 +2604,7 @@ async function syncCommunityWithCloud(localPosts = null) {
     });
     
     if (hasChanges) {
-      await puter.kv.set(cloudKey, JSON.stringify(mergedPosts));
+      await puterKvSetWithTimeout(cloudKey, JSON.stringify(mergedPosts));
       localStorage.setItem('weight_loss_community_posts', JSON.stringify(mergedPosts));
       
       const activeTab = document.querySelector('.nav-item.active')?.getAttribute('data-tab-target') || 
@@ -2822,7 +2859,7 @@ async function syncAccountsWithCloud() {
   
   const cloudKey = 'easyslim_global_accounts';
   try {
-    const cloudDataStr = await puter.kv.get(cloudKey);
+    const cloudDataStr = await puterKvGetWithTimeout(cloudKey);
     let cloudAccounts = [];
     if (cloudDataStr) {
       try {
@@ -2887,7 +2924,7 @@ async function syncAccountsWithCloud() {
     
     if (accountsChanged) {
       localStorage.setItem('weight_loss_accounts', JSON.stringify(finalAccounts));
-      await puter.kv.set(cloudKey, JSON.stringify(finalAccounts));
+      await puterKvSetWithTimeout(cloudKey, JSON.stringify(finalAccounts));
       console.log('Synchronized accounts with Puter Cloud successfully.');
     }
   } catch (err) {
@@ -3062,7 +3099,7 @@ async function handleRegister(username, password) {
   // Also push immediately to cloud KV
   if (typeof puter !== 'undefined' && puter.kv && navigator.onLine) {
     try {
-      await puter.kv.set('easyslim_global_accounts', JSON.stringify(accounts));
+      await puterKvSetWithTimeout('easyslim_global_accounts', JSON.stringify(accounts));
     } catch (e) {
       console.error("Failed to set global accounts on register", e);
     }
@@ -3217,7 +3254,7 @@ async function handleSaveSecurity(e) {
       localStorage.setItem('weight_loss_accounts', JSON.stringify(accounts));
       
       if (typeof puter !== 'undefined' && puter.kv && navigator.onLine) {
-        await puter.kv.set('easyslim_global_accounts', JSON.stringify(accounts));
+        await puterKvSetWithTimeout('easyslim_global_accounts', JSON.stringify(accounts));
       }
       
       const remUser = localStorage.getItem('weight_loss_remember_username');
@@ -5422,7 +5459,7 @@ async function syncDataWithCloud() {
   const cloudKey = `easyslim_sync_user_${appState.currentUser}`;
   
   try {
-    const cloudDataStr = await puter.kv.get(cloudKey);
+    const cloudDataStr = await puterKvGetWithTimeout(cloudKey);
     let cloudData = null;
     if (cloudDataStr) {
       try {
@@ -5463,7 +5500,7 @@ async function syncDataWithCloud() {
         profile: appState.profile,
         records: appState.records
       };
-      await puter.kv.set(cloudKey, JSON.stringify(stateToUpload));
+      await puterKvSetWithTimeout(cloudKey, JSON.stringify(stateToUpload));
       console.log('Data synced: uploaded local modifications to Puter Cloud.');
     } else if (cloudUpdatedAt > localUpdatedAt) {
       appState.profile = cloudData.profile;
