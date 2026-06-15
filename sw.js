@@ -1,9 +1,9 @@
-const CACHE_NAME = 'weight-loss-tracker-v37';
+const CACHE_NAME = 'weight-loss-tracker-v38';
 const ASSETS = [
   './',
   './index.html',
   './css/style.css',
-  './js/app.js?v=37',
+  './js/app.js?v=38',
   './js/food_db.js',
   './js/recipes.js',
   './logo.svg',
@@ -34,14 +34,39 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// 拦截请求并实现离线缓存优先策略
+// 拦截请求并实现缓存策略
 self.addEventListener('fetch', (e) => {
+  // 1. 对 HTML/导航请求使用网络优先 (Network-First) 策略，防止页面内容和缓存锁死
+  const isHtml = e.request.mode === 'navigate' || 
+                 e.request.url.endsWith('.html') || 
+                 e.request.url === self.location.origin + '/' ||
+                 e.request.url.endsWith('/');
+                 
+  if (isHtml) {
+    e.respondWith(
+      fetch(e.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(e.request, clone);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match(e.request);
+        })
+    );
+    return;
+  }
+
+  // 2. 对其他静态资源使用缓存优先并在后台自动更新 (Stale-While-Revalidate) 策略
   e.respondWith(
     caches.match(e.request).then((cachedResponse) => {
       if (cachedResponse) {
-        // 后台异步更新，以保证内容最新
         fetch(e.request).then((networkResponse) => {
-          if (networkResponse.status === 200) {
+          if (networkResponse && networkResponse.status === 200) {
             caches.open(CACHE_NAME).then((cache) => {
               cache.put(e.request, networkResponse);
             });
