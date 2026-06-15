@@ -3249,12 +3249,36 @@ function showToast(msg) {
   }, 2200);
 }
 
-// 注册 PWA Service Worker
+// 注册 PWA Service Worker (增加自动检测更新并重载页面的机制，防范客户端浏览器加载过期缓存脚本)
 function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js')
-      .then(reg => console.log('Service Worker 注册成功:', reg.scope))
+      .then(reg => {
+        console.log('Service Worker 注册成功:', reg.scope);
+        // 监听 service worker 的更新状态
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'activated') {
+                console.log('检测到新版 Service Worker 激活，自动重载应用以获取最新防崩溃机制。');
+                window.location.reload();
+              }
+            });
+          }
+        });
+      })
       .catch(err => console.error('Service Worker 注册失败:', err));
+      
+    // 监听 controllerchange 事件，当新版 service worker 接管页面时触发自动刷新
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        refreshing = true;
+        console.log('Service Worker 接管更新，正在为您刷新页面...');
+        window.location.reload();
+      }
+    });
   }
 }
 
@@ -3404,15 +3428,15 @@ async function syncAccountsWithCloud() {
       });
       
       const finalAccounts = Array.from(mergedMap.values());
-      const localKeys = new Set(localAccounts.filter(x => x && x.username).map(x => x.username.toLowerCase()));
-      const hasCloudNew = finalAccounts.some(x => !localKeys.has(x.username.toLowerCase()));
+      const localKeys = new Set(localAccounts.filter(x => x && x.username).map(x => x && x.username && x.username.toLowerCase()));
+      const hasCloudNew = finalAccounts.some(x => x && x.username && !localKeys.has(x.username.toLowerCase()));
       
       let accountsChanged = false;
       if (finalAccounts.length !== localAccounts.length || hasLocalNewOrChanged || hasCloudNew) {
         accountsChanged = true;
       } else {
         for (const fa of finalAccounts) {
-          const la = localAccounts.find(x => x.username.toLowerCase() === fa.username.toLowerCase());
+          const la = localAccounts.find(x => x && x.username && x.username.toLowerCase() === fa.username.toLowerCase());
           if (!la || la.password !== fa.password || la.securityQuestion !== fa.securityQuestion || la.securityAnswer !== fa.securityAnswer) {
             accountsChanged = true;
             break;
@@ -3495,7 +3519,7 @@ async function handleLogin(username, password) {
                 // Decrypted successfully! Update local accounts database
                 const accountsStr = localStorage.getItem('weight_loss_accounts');
                 const accounts = accountsStr ? JSON.parse(accountsStr) : [];
-                const existingIdx = accounts.findIndex(x => x.username.toLowerCase() === username.toLowerCase());
+                const existingIdx = accounts.findIndex(x => x && x.username && x.username.toLowerCase() === username.toLowerCase());
                 const accountData = {
                   username: payload.u,
                   password: payload.p,
@@ -3574,7 +3598,7 @@ async function handleLogin(username, password) {
   const accountsStr = localStorage.getItem('weight_loss_accounts');
   const accounts = accountsStr ? JSON.parse(accountsStr) : [];
   
-  const userAcc = accounts.find(x => x.username.toLowerCase() === username.toLowerCase());
+  const userAcc = accounts.find(x => x && x.username && x.username.toLowerCase() === username.toLowerCase());
   if (!userAcc || userAcc.password !== password) {
     errEl.innerText = '❌ 账号不存在或密码错误';
     errEl.style.display = 'block';
@@ -3657,7 +3681,7 @@ async function handleRegister(username, password) {
   const accountsStr = localStorage.getItem('weight_loss_accounts');
   const accounts = accountsStr ? JSON.parse(accountsStr) : [];
   
-  const isExist = accounts.some(x => x.username.toLowerCase() === username.toLowerCase());
+  const isExist = accounts.some(x => x && x.username && x.username.toLowerCase() === username.toLowerCase());
   if (isExist) {
     errEl.innerText = '❌ 该账号名称已被注册';
     errEl.style.display = 'block';
@@ -3800,7 +3824,7 @@ async function handleForgotPassword(e) {
   
   const accountsStr = localStorage.getItem('weight_loss_accounts');
   const accounts = accountsStr ? JSON.parse(accountsStr) : [];
-  let userAcc = accounts.find(x => x.username.toLowerCase() === username.toLowerCase());
+  let userAcc = accounts.find(x => x && x.username && x.username.toLowerCase() === username.toLowerCase());
   
   if (fromCloud) {
     if (!userAcc) {
@@ -3863,7 +3887,7 @@ async function handleForgotPassword(e) {
     : `验证成功！\n您的登录密码是：${decryptedPayload.p}\n正在为您自动登录并同步设备...`);
      
   // Save to local accounts
-  const existingIdx = accounts.findIndex(x => x.username.toLowerCase() === username.toLowerCase());
+  const existingIdx = accounts.findIndex(x => x && x.username && x.username.toLowerCase() === username.toLowerCase());
   const accountObj = {
     username: decryptedPayload.u,
     password: decryptedPayload.p,
@@ -3931,7 +3955,7 @@ function openSecurityModal() {
   if (!appState.currentUser) return;
   const accountsStr = localStorage.getItem('weight_loss_accounts');
   const accounts = accountsStr ? JSON.parse(accountsStr) : [];
-  const userAcc = accounts.find(x => x.username.toLowerCase() === appState.currentUser.toLowerCase());
+  const userAcc = accounts.find(x => x && x.username && x.username.toLowerCase() === appState.currentUser.toLowerCase());
   
   if (!userAcc) return;
   
@@ -3977,7 +4001,7 @@ async function handleSaveSecurity(e) {
     
     const accountsStr = localStorage.getItem('weight_loss_accounts');
     const accounts = accountsStr ? JSON.parse(accountsStr) : [];
-    const userIndex = accounts.findIndex(x => x.username.toLowerCase() === username.toLowerCase());
+    const userIndex = accounts.findIndex(x => x && x.username && x.username.toLowerCase() === username.toLowerCase());
     
     if (userIndex > -1) {
       accounts[userIndex].password = newPass;
@@ -4015,7 +4039,7 @@ async function handleSaveSecurity(e) {
 function showDeviceSyncCode() {
   const accountsStr = localStorage.getItem('weight_loss_accounts');
   const accounts = accountsStr ? JSON.parse(accountsStr) : [];
-  const userAcc = accounts.find(x => x.username.toLowerCase() === appState.currentUser.toLowerCase());
+  const userAcc = accounts.find(x => x && x.username && x.username.toLowerCase() === appState.currentUser.toLowerCase());
   
   if (!userAcc) {
     showToast('❌ 未找到当前登录账号信息');
@@ -4097,7 +4121,7 @@ function handleDeviceImportConfirm() {
     const accountsStr = localStorage.getItem('weight_loss_accounts');
     const accounts = accountsStr ? JSON.parse(accountsStr) : [];
     
-    const existingIndex = accounts.findIndex(x => x.username.toLowerCase() === payload.u.toLowerCase());
+    const existingIndex = accounts.findIndex(x => x && x.username && x.username.toLowerCase() === payload.u.toLowerCase());
     const newAccountObj = {
       username: payload.u,
       password: payload.p,
@@ -6570,7 +6594,7 @@ function renderProfileCenterPage() {
   if (appState.currentUser) {
     const accountsStr = localStorage.getItem('weight_loss_accounts');
     const accounts = accountsStr ? JSON.parse(accountsStr) : [];
-    const userAcc = accounts.find(x => x.username.toLowerCase() === appState.currentUser.toLowerCase());
+    const userAcc = accounts.find(x => x && x.username && x.username.toLowerCase() === appState.currentUser.toLowerCase());
     if (userAcc) {
       const uInput = document.getElementById('pcUsernameInput');
       const pInput = document.getElementById('pcPasswordInput');
@@ -6602,7 +6626,7 @@ async function submitAccountSecurityUpdate() {
   
   const accountsStr = localStorage.getItem('weight_loss_accounts');
   const accounts = accountsStr ? JSON.parse(accountsStr) : [];
-  const uIdx = accounts.findIndex(x => x.username.toLowerCase() === appState.currentUser.toLowerCase());
+  const uIdx = accounts.findIndex(x => x && x.username && x.username.toLowerCase() === appState.currentUser.toLowerCase());
   
   if (uIdx === -1) {
     showToast('❌ 未找到当前账号');
@@ -6695,7 +6719,7 @@ async function submitRenameUsername() {
   const accounts = accountsStr ? JSON.parse(accountsStr) : [];
   
   // Check if name is taken
-  const nameExists = accounts.some(x => x.username.toLowerCase() === newUsername.toLowerCase());
+  const nameExists = accounts.some(x => x && x.username && x.username.toLowerCase() === newUsername.toLowerCase());
   if (nameExists) {
     showToast('❌ 该账号名称已被其他用户占用');
     return;
@@ -6710,7 +6734,7 @@ async function submitRenameUsername() {
   
   try {
     // 1. Update accounts array
-    const uIdx = accounts.findIndex(x => x.username.toLowerCase() === oldUsername.toLowerCase());
+    const uIdx = accounts.findIndex(x => x && x.username && x.username.toLowerCase() === oldUsername.toLowerCase());
     if (uIdx !== -1) {
       accounts[uIdx].username = newUsername;
     }
@@ -7022,7 +7046,7 @@ async function autoSyncPuterTokensOnStartup() {
   
   const accountsStr = localStorage.getItem('weight_loss_accounts');
   const accounts = accountsStr ? JSON.parse(accountsStr) : [];
-  const userAcc = accounts.find(x => x.username.toLowerCase() === appState.currentUser.toLowerCase());
+  const userAcc = accounts.find(x => x && x.username && x.username.toLowerCase() === appState.currentUser.toLowerCase());
   
   if (!userAcc || !userAcc.password) return false;
   
@@ -7075,7 +7099,7 @@ async function autoUploadPuterTokensToCloud() {
   
   const accountsStr = localStorage.getItem('weight_loss_accounts');
   const accounts = accountsStr ? JSON.parse(accountsStr) : [];
-  const userAcc = accounts.find(x => x.username.toLowerCase() === appState.currentUser.toLowerCase());
+  const userAcc = accounts.find(x => x && x.username && x.username.toLowerCase() === appState.currentUser.toLowerCase());
   
   if (!userAcc || !userAcc.password) return;
   
