@@ -4,7 +4,8 @@
   "description": "高颜值智能减肥追踪与水油焖菜食谱规划工具",
   "main": "index.html",
   "scripts": {
-    "dev": "npx -y http-server -p 8080 -c-1"
+    "dev": "npx -y http-server -p 8080 -c-1",
+    "test": "node test/run_tests.js"
   },
   "keywords": [
     "pwa",
