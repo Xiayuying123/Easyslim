@@ -30,9 +30,15 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   
   if (appState.currentUser) {
-    syncDataWithCloud();
-    checkProfileRequirement();
-    updateUI();
+    (async () => {
+      try {
+        await syncDataWithCloud();
+      } catch (err) {
+        console.error("Startup sync error:", err);
+      }
+      checkProfileRequirement();
+      updateUI();
+    })();
   }
 });
 
@@ -3191,82 +3197,108 @@ function importData(e) {
 // ==========================================
 // 🌐 GLOBAL ACCOUNTS SYNCHRONIZATION
 // ==========================================
+let currentAccountsSyncPromise = null;
+
 async function syncAccountsWithCloud() {
-  if (typeof puter === 'undefined' || !puter.kv) return;
   if (!navigator.onLine) return;
   
-  const cloudKey = 'easyslim_global_accounts';
-  try {
-    const cloudDataStr = await puterKvGetWithTimeout(cloudKey);
-    let cloudAccounts = [];
-    if (cloudDataStr) {
-      try {
-        cloudAccounts = JSON.parse(cloudDataStr);
-      } catch (e) {
-        console.error('Failed to parse cloud accounts', e);
+  if (currentAccountsSyncPromise) {
+    return currentAccountsSyncPromise;
+  }
+  
+  currentAccountsSyncPromise = (async () => {
+    // Wait up to 4 seconds for puter KV to be ready if it's undefined
+    for (let i = 0; i < 20; i++) {
+      if (typeof puter !== 'undefined' && puter.kv) {
+        break;
       }
+      await new Promise(r => setTimeout(r, 200));
     }
     
-    const localAccountsStr = localStorage.getItem('weight_loss_accounts');
-    const localAccounts = localAccountsStr ? JSON.parse(localAccountsStr) : [];
+    if (typeof puter === 'undefined' || !puter.kv) {
+      console.warn("Puter KV not ready, skipping syncAccountsWithCloud");
+      return;
+    }
     
-    const mergedMap = new Map();
-    cloudAccounts.forEach(acc => {
-      if (acc && acc.username) {
-        mergedMap.set(acc.username.toLowerCase(), acc);
+    const cloudKey = 'easyslim_global_accounts';
+    try {
+      const cloudDataStr = await puterKvGetWithTimeout(cloudKey);
+      let cloudAccounts = [];
+      if (cloudDataStr) {
+        try {
+          cloudAccounts = JSON.parse(cloudDataStr);
+        } catch (e) {
+          console.error('Failed to parse cloud accounts', e);
+        }
       }
-    });
-    
-    let hasLocalNewOrChanged = false;
-    localAccounts.forEach(localAcc => {
-      if (!localAcc || !localAcc.username) return;
-      const key = localAcc.username.toLowerCase();
-      const existing = mergedMap.get(key);
-      if (!existing) {
-        mergedMap.set(key, localAcc);
-        hasLocalNewOrChanged = true;
+      
+      const localAccountsStr = localStorage.getItem('weight_loss_accounts');
+      const localAccounts = localAccountsStr ? JSON.parse(localAccountsStr) : [];
+      
+      const mergedMap = new Map();
+      cloudAccounts.forEach(acc => {
+        if (acc && acc.username) {
+          mergedMap.set(acc.username.toLowerCase(), acc);
+        }
+      });
+      
+      let hasLocalNewOrChanged = false;
+      localAccounts.forEach(localAcc => {
+        if (!localAcc || !localAcc.username) return;
+        const key = localAcc.username.toLowerCase();
+        const existing = mergedMap.get(key);
+        if (!existing) {
+          mergedMap.set(key, localAcc);
+          hasLocalNewOrChanged = true;
+        } else {
+          let isDifferent = false;
+          if (localAcc.password !== existing.password) isDifferent = true;
+          if ((localAcc.securityQuestion || '') !== (existing.securityQuestion || '')) isDifferent = true;
+          if ((localAcc.securityAnswer || '') !== (existing.securityAnswer || '')) isDifferent = true;
+          
+          if (isDifferent) {
+            const isCurrentlyLoggedIn = appState.currentUser && appState.currentUser.toLowerCase() === key;
+            if (isCurrentlyLoggedIn) {
+              mergedMap.set(key, localAcc);
+              hasLocalNewOrChanged = true;
+            } else {
+              mergedMap.set(key, existing);
+            }
+          }
+        }
+      });
+      
+      const finalAccounts = Array.from(mergedMap.values());
+      const localKeys = new Set(localAccounts.map(x => x.username.toLowerCase()));
+      const hasCloudNew = finalAccounts.some(x => !localKeys.has(x.username.toLowerCase()));
+      
+      let accountsChanged = false;
+      if (finalAccounts.length !== localAccounts.length || hasLocalNewOrChanged || hasCloudNew) {
+        accountsChanged = true;
       } else {
-        let isDifferent = false;
-        if (localAcc.password !== existing.password) isDifferent = true;
-        if ((localAcc.securityQuestion || '') !== (existing.securityQuestion || '')) isDifferent = true;
-        if ((localAcc.securityAnswer || '') !== (existing.securityAnswer || '')) isDifferent = true;
-        
-        if (isDifferent) {
-          const isCurrentlyLoggedIn = appState.currentUser && appState.currentUser.toLowerCase() === key;
-          if (isCurrentlyLoggedIn) {
-            mergedMap.set(key, localAcc);
-            hasLocalNewOrChanged = true;
-          } else {
-            mergedMap.set(key, existing);
+        for (const fa of finalAccounts) {
+          const la = localAccounts.find(x => x.username.toLowerCase() === fa.username.toLowerCase());
+          if (!la || la.password !== fa.password || la.securityQuestion !== fa.securityQuestion || la.securityAnswer !== fa.securityAnswer) {
+            accountsChanged = true;
+            break;
           }
         }
       }
-    });
-    
-    const finalAccounts = Array.from(mergedMap.values());
-    const localKeys = new Set(localAccounts.map(x => x.username.toLowerCase()));
-    const hasCloudNew = finalAccounts.some(x => !localKeys.has(x.username.toLowerCase()));
-    
-    let accountsChanged = false;
-    if (finalAccounts.length !== localAccounts.length || hasLocalNewOrChanged || hasCloudNew) {
-      accountsChanged = true;
-    } else {
-      for (const fa of finalAccounts) {
-        const la = localAccounts.find(x => x.username.toLowerCase() === fa.username.toLowerCase());
-        if (!la || la.password !== fa.password || la.securityQuestion !== fa.securityQuestion || la.securityAnswer !== fa.securityAnswer) {
-          accountsChanged = true;
-          break;
-        }
+      
+      if (accountsChanged) {
+        localStorage.setItem('weight_loss_accounts', JSON.stringify(finalAccounts));
+        await puterKvSetWithTimeout(cloudKey, JSON.stringify(finalAccounts));
+        console.log('Synchronized accounts with Puter Cloud successfully.');
       }
+    } catch (err) {
+      console.error('Failed to sync accounts with cloud:', err);
     }
-    
-    if (accountsChanged) {
-      localStorage.setItem('weight_loss_accounts', JSON.stringify(finalAccounts));
-      await puterKvSetWithTimeout(cloudKey, JSON.stringify(finalAccounts));
-      console.log('Synchronized accounts with Puter Cloud successfully.');
-    }
-  } catch (err) {
-    console.error('Failed to sync accounts with cloud:', err);
+  })();
+  
+  try {
+    await currentAccountsSyncPromise;
+  } finally {
+    currentAccountsSyncPromise = null;
   }
 }
 
@@ -5926,64 +5958,90 @@ window.exportAiReportPdf = exportAiReportPdf;
 // ==========================================
 // 🌐 HYBRID CLOUD SYNC & NETWORK STATUS
 // ==========================================
+let currentSyncPromise = null;
+
 async function syncDataWithCloud() {
   if (!appState.currentUser) return;
   if (!navigator.onLine) return;
-  if (typeof puter === 'undefined' || !puter.kv) return;
   
-  const cloudKey = `easyslim_sync_user_${appState.currentUser}`;
+  if (currentSyncPromise) {
+    return currentSyncPromise;
+  }
   
-  try {
-    const cloudDataStr = await puterKvGetWithTimeout(cloudKey);
-    let cloudData = null;
-    if (cloudDataStr) {
-      try {
-        cloudData = JSON.parse(cloudDataStr);
-      } catch (e) {
-        console.error('Failed to parse cloud data', e);
+  currentSyncPromise = (async () => {
+    // Wait up to 4 seconds for puter KV to be ready if it's undefined
+    for (let i = 0; i < 20; i++) {
+      if (typeof puter !== 'undefined' && puter.kv) {
+        break;
       }
+      await new Promise(r => setTimeout(r, 200));
     }
     
-    if (!appState.profile) {
-      // Local profile is empty. If cloud profile exists, download it!
-      if (cloudData && cloudData.profile) {
-        appState.profile = cloudData.profile;
-        appState.records = cloudData.records || {};
-        
-        saveData(true, true); // Save locally without bumping timestamp or calling sync again
-        
-        // If profileModal is open, close it
-        const profModal = document.getElementById('profileModal');
-        if (profModal && profModal.classList.contains('active')) {
-          closeModal('profileModal');
-        }
-        
-        updateUI();
-        showToast(appState.language === 'en' ? 'Downloaded profile & data from Cloud!' : '已自云端恢复您的个人档案及数据！');
-      }
+    if (typeof puter === 'undefined' || !puter.kv) {
+      console.warn("Puter KV not ready, skipping syncDataWithCloud");
       return;
     }
     
-    const localUpdatedAt = appState.profile.updatedAt || 0;
-    const cloudUpdatedAt = (cloudData && cloudData.profile && cloudData.profile.updatedAt) || 0;
+    const cloudKey = `easyslim_sync_user_${appState.currentUser}`;
     
-    if (localUpdatedAt > cloudUpdatedAt) {
-      const stateToUpload = {
-        profile: appState.profile,
-        records: appState.records
-      };
-      await puterKvSetWithTimeout(cloudKey, JSON.stringify(stateToUpload));
-      console.log('Data synced: uploaded local modifications to Puter Cloud.');
-    } else if (cloudUpdatedAt > localUpdatedAt) {
-      appState.profile = cloudData.profile;
-      appState.records = cloudData.records;
+    try {
+      const cloudDataStr = await puterKvGetWithTimeout(cloudKey);
+      let cloudData = null;
+      if (cloudDataStr) {
+        try {
+          cloudData = JSON.parse(cloudDataStr);
+        } catch (e) {
+          console.error('Failed to parse cloud data', e);
+        }
+      }
       
-      saveData(true, true); // Save locally without bumping timestamp or calling sync again
-      updateUI();
-      showToast(appState.language === 'en' ? 'Downloaded updates from Cloud!' : '已从云端同步最新数据！');
+      if (!appState.profile) {
+        // Local profile is empty. If cloud profile exists, download it!
+        if (cloudData && cloudData.profile) {
+          appState.profile = cloudData.profile;
+          appState.records = cloudData.records || {};
+          
+          saveData(true, true); // Save locally without bumping timestamp or calling sync again
+          
+          // If profileModal is open, close it
+          const profModal = document.getElementById('profileModal');
+          if (profModal && profModal.classList.contains('active')) {
+            closeModal('profileModal');
+          }
+          
+          updateUI();
+          showToast(appState.language === 'en' ? 'Downloaded profile & data from Cloud!' : '已自云端恢复您的个人档案及数据！');
+        }
+        return;
+      }
+      
+      const localUpdatedAt = appState.profile.updatedAt || 0;
+      const cloudUpdatedAt = (cloudData && cloudData.profile && cloudData.profile.updatedAt) || 0;
+      
+      if (localUpdatedAt > cloudUpdatedAt) {
+        const stateToUpload = {
+          profile: appState.profile,
+          records: appState.records
+        };
+        await puterKvSetWithTimeout(cloudKey, JSON.stringify(stateToUpload));
+        console.log('Data synced: uploaded local modifications to Puter Cloud.');
+      } else if (cloudUpdatedAt > localUpdatedAt) {
+        appState.profile = cloudData.profile;
+        appState.records = cloudData.records;
+        
+        saveData(true, true); // Save locally without bumping timestamp or calling sync again
+        updateUI();
+        showToast(appState.language === 'en' ? 'Downloaded updates from Cloud!' : '已从云端同步最新数据！');
+      }
+    } catch (error) {
+      console.error('Cloud synchronization error:', error);
     }
-  } catch (error) {
-    console.error('Cloud synchronization error:', error);
+  })();
+  
+  try {
+    await currentSyncPromise;
+  } finally {
+    currentSyncPromise = null;
   }
 }
 window.syncDataWithCloud = syncDataWithCloud;
