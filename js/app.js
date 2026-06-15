@@ -20,7 +20,17 @@ document.addEventListener('DOMContentLoaded', () => {
   applyLanguage(); // 应用多语言翻译
   checkAuthStatus(); // 校验用户登录状态
   routeTab('dashboard'); // 默认展示控制台
+  
+  // Asynchronously sync accounts on startup
+  syncAccountsWithCloud().then(() => {
+    // If not logged in, re-check auth status to prefill if needed
+    if (!appState.currentUser) {
+      checkAuthStatus();
+    }
+  });
+  
   if (appState.currentUser) {
+    syncDataWithCloud();
     checkProfileRequirement();
     updateUI();
   }
@@ -61,11 +71,28 @@ function loadData() {
     try {
       const parsed = JSON.parse(savedState);
       appState.profile = parsed.profile || null;
-      if (appState.profile && !appState.profile.pointsMigrated) {
-        appState.profile.points = 100000000;
-        appState.profile.pointsMigrated = true;
-        setTimeout(saveData, 0);
+      
+      // Auto pre-unlock cloud_sync and points migration
+      if (appState.profile) {
+        let changed = false;
+        if (!appState.profile.unlockedFeatures) {
+          appState.profile.unlockedFeatures = [];
+          changed = true;
+        }
+        if (!appState.profile.unlockedFeatures.includes('cloud_sync')) {
+          appState.profile.unlockedFeatures.push('cloud_sync');
+          changed = true;
+        }
+        if (!appState.profile.pointsMigrated) {
+          appState.profile.points = 100000000;
+          appState.profile.pointsMigrated = true;
+          changed = true;
+        }
+        if (changed) {
+          setTimeout(saveData, 0);
+        }
       }
+      
       appState.records = parsed.records || {};
     } catch (e) {
       console.error('解析用户本地存储失败', e);
@@ -80,11 +107,19 @@ function loadData() {
 // 保存数据至 LocalStorage（隔离保存至独立用户key）
 function saveData() {
   if (!appState.currentUser) return;
+  if (appState.profile) {
+    appState.profile.updatedAt = Date.now();
+  }
   const stateToSave = {
     profile: appState.profile,
     records: appState.records
   };
   localStorage.setItem('weight_loss_state_user_' + appState.currentUser, JSON.stringify(stateToSave));
+  
+  // Trigger cloud sync asynchronously if cloud_sync is unlocked
+  if (appState.profile && appState.profile.unlockedFeatures && appState.profile.unlockedFeatures.includes('cloud_sync')) {
+    syncDataWithCloud();
+  }
 }
 
 // 检查是否需要配置个人身高体重信息
@@ -717,6 +752,9 @@ function saveProfile() {
   const existingPoints = (appState.profile && appState.profile.points) !== undefined ? appState.profile.points : 100000000;
   const existingPointsMigrated = (appState.profile && appState.profile.pointsMigrated) || false;
   const existingUnlocked = (appState.profile && appState.profile.unlockedFeatures) || [];
+  if (!existingUnlocked.includes('cloud_sync')) {
+    existingUnlocked.push('cloud_sync');
+  }
   const existingPointsLog = (appState.profile && appState.profile.pointsLog) || [];
   const existingStartDate = (appState.profile && appState.profile.startDate) || getTodayString();
   
@@ -2775,6 +2813,88 @@ function importData(e) {
   reader.readAsText(file);
 }
 
+// ==========================================
+// 🌐 GLOBAL ACCOUNTS SYNCHRONIZATION
+// ==========================================
+async function syncAccountsWithCloud() {
+  if (typeof puter === 'undefined' || !puter.kv) return;
+  if (!navigator.onLine) return;
+  
+  const cloudKey = 'easyslim_global_accounts';
+  try {
+    const cloudDataStr = await puter.kv.get(cloudKey);
+    let cloudAccounts = [];
+    if (cloudDataStr) {
+      try {
+        cloudAccounts = JSON.parse(cloudDataStr);
+      } catch (e) {
+        console.error('Failed to parse cloud accounts', e);
+      }
+    }
+    
+    const localAccountsStr = localStorage.getItem('weight_loss_accounts');
+    const localAccounts = localAccountsStr ? JSON.parse(localAccountsStr) : [];
+    
+    const mergedMap = new Map();
+    cloudAccounts.forEach(acc => {
+      if (acc && acc.username) {
+        mergedMap.set(acc.username.toLowerCase(), acc);
+      }
+    });
+    
+    let hasLocalNewOrChanged = false;
+    localAccounts.forEach(localAcc => {
+      if (!localAcc || !localAcc.username) return;
+      const key = localAcc.username.toLowerCase();
+      const existing = mergedMap.get(key);
+      if (!existing) {
+        mergedMap.set(key, localAcc);
+        hasLocalNewOrChanged = true;
+      } else {
+        let isDifferent = false;
+        if (localAcc.password !== existing.password) isDifferent = true;
+        if ((localAcc.securityQuestion || '') !== (existing.securityQuestion || '')) isDifferent = true;
+        if ((localAcc.securityAnswer || '') !== (existing.securityAnswer || '')) isDifferent = true;
+        
+        if (isDifferent) {
+          const isCurrentlyLoggedIn = appState.currentUser && appState.currentUser.toLowerCase() === key;
+          if (isCurrentlyLoggedIn) {
+            mergedMap.set(key, localAcc);
+            hasLocalNewOrChanged = true;
+          } else {
+            mergedMap.set(key, existing);
+          }
+        }
+      }
+    });
+    
+    const finalAccounts = Array.from(mergedMap.values());
+    const localKeys = new Set(localAccounts.map(x => x.username.toLowerCase()));
+    const hasCloudNew = finalAccounts.some(x => !localKeys.has(x.username.toLowerCase()));
+    
+    let accountsChanged = false;
+    if (finalAccounts.length !== localAccounts.length || hasLocalNewOrChanged || hasCloudNew) {
+      accountsChanged = true;
+    } else {
+      for (const fa of finalAccounts) {
+        const la = localAccounts.find(x => x.username.toLowerCase() === fa.username.toLowerCase());
+        if (!la || la.password !== fa.password || la.securityQuestion !== fa.securityQuestion || la.securityAnswer !== fa.securityAnswer) {
+          accountsChanged = true;
+          break;
+        }
+      }
+    }
+    
+    if (accountsChanged) {
+      localStorage.setItem('weight_loss_accounts', JSON.stringify(finalAccounts));
+      await puter.kv.set(cloudKey, JSON.stringify(finalAccounts));
+      console.log('Synchronized accounts with Puter Cloud successfully.');
+    }
+  } catch (err) {
+    console.error('Failed to sync accounts with cloud:', err);
+  }
+}
+
 // 校验用户登录态并展示登录遮罩
 function checkAuthStatus() {
   const overlay = document.getElementById('authOverlay');
@@ -2795,15 +2915,38 @@ function checkAuthStatus() {
       document.getElementById('loginPass').value = rememberedPass;
       document.getElementById('loginRemember').checked = true;
     }
+    
+    // Asynchronously pull latest accounts when showing login screen
+    syncAccountsWithCloud();
   } else {
     overlay.style.display = 'none';
+    // Sync data immediately if logged in
+    syncDataWithCloud();
   }
 }
 
 // 处理登录提交
-function handleLogin(username, password) {
+async function handleLogin(username, password) {
   const errEl = document.getElementById('loginError');
   errEl.style.display = 'none';
+  
+  const submitBtn = document.querySelector('#loginForm button[type="submit"]');
+  const originalText = submitBtn ? submitBtn.innerText : '';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerText = appState.language === 'en' ? 'Verifying...' : '验证中...';
+  }
+  
+  try {
+    await syncAccountsWithCloud();
+  } catch (e) {
+    console.error("Sync accounts failed before login", e);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerText = originalText;
+    }
+  }
   
   const accountsStr = localStorage.getItem('weight_loss_accounts');
   const accounts = accountsStr ? JSON.parse(accountsStr) : [];
@@ -2828,6 +2971,17 @@ function handleLogin(username, password) {
   localStorage.setItem('weight_loss_current_user', userAcc.username);
   
   loadData();
+  
+  const loginOverlay = document.getElementById('authOverlay');
+  if (loginOverlay) {
+    showToast(appState.language === 'en' ? 'Syncing user profile...' : '正在同步云端个人档案...');
+  }
+  try {
+    await syncDataWithCloud();
+  } catch (err) {
+    console.error("Failed to sync data with cloud on login", err);
+  }
+  
   checkAuthStatus();
   updateUI();
   checkProfileRequirement();
@@ -2836,7 +2990,7 @@ function handleLogin(username, password) {
 }
 
 // 处理注册提交
-function handleRegister(username, password) {
+async function handleRegister(username, password) {
   const errEl = document.getElementById('registerError');
   errEl.style.display = 'none';
   
@@ -2857,6 +3011,24 @@ function handleRegister(username, password) {
     errEl.innerText = '❌ 请填写密保提示问题与答案';
     errEl.style.display = 'block';
     return;
+  }
+  
+  const submitBtn = document.querySelector('#registerForm button[type="submit"]');
+  const originalText = submitBtn ? submitBtn.innerText : '';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerText = appState.language === 'en' ? 'Registering...' : '注册中...';
+  }
+  
+  try {
+    await syncAccountsWithCloud();
+  } catch (e) {
+    console.error("Sync accounts failed before register", e);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerText = originalText;
+    }
   }
   
   const accountsStr = localStorage.getItem('weight_loss_accounts');
@@ -2886,6 +3058,16 @@ function handleRegister(username, password) {
     securityAnswer: answer 
   });
   localStorage.setItem('weight_loss_accounts', JSON.stringify(accounts));
+  
+  // Also push immediately to cloud KV
+  if (typeof puter !== 'undefined' && puter.kv && navigator.onLine) {
+    try {
+      await puter.kv.set('easyslim_global_accounts', JSON.stringify(accounts));
+    } catch (e) {
+      console.error("Failed to set global accounts on register", e);
+    }
+  }
+  
   localStorage.setItem('weight_loss_current_user', username);
   
   loadData();
@@ -2896,7 +3078,7 @@ function handleRegister(username, password) {
   showToast(`🎉 注册成功！欢迎使用，${username}！`);
 }
 
-function handleForgotPassword(e) {
+async function handleForgotPassword(e) {
   e.preventDefault();
   const username = document.getElementById('loginUser').value.trim();
   const lang = appState.language || 'zh';
@@ -2904,6 +3086,24 @@ function handleForgotPassword(e) {
   if (!username) {
     showToast(lang === 'en' ? 'Please enter your username first!' : '请先在输入框中输入您的账号名称！');
     return;
+  }
+  
+  const forgotLink = document.getElementById('forgotPasswordBtn');
+  const originalText = forgotLink ? forgotLink.innerText : '';
+  if (forgotLink) {
+    forgotLink.style.pointerEvents = 'none';
+    forgotLink.innerText = lang === 'en' ? 'Verifying...' : '验证中...';
+  }
+  
+  try {
+    await syncAccountsWithCloud();
+  } catch (err) {
+    console.error("Sync accounts failed before forgot password check", err);
+  } finally {
+    if (forgotLink) {
+      forgotLink.style.pointerEvents = 'auto';
+      forgotLink.innerText = originalText;
+    }
   }
   
   const accountsStr = localStorage.getItem('weight_loss_accounts');
@@ -2943,6 +3143,13 @@ function handleForgotPassword(e) {
     }
     
     loadData();
+    
+    try {
+      await syncDataWithCloud();
+    } catch (err) {
+      console.error("Failed to sync data with cloud on login via forgot password", err);
+    }
+    
     checkAuthStatus();
     updateUI();
     checkProfileRequirement();
@@ -2969,7 +3176,7 @@ function openSecurityModal() {
 }
 window.openSecurityModal = openSecurityModal;
 
-function handleSaveSecurity(e) {
+async function handleSaveSecurity(e) {
   e.preventDefault();
   const username = document.getElementById('secUsername').value;
   const newPass = document.getElementById('secPassword').value.trim();
@@ -2989,23 +3196,47 @@ function handleSaveSecurity(e) {
     return;
   }
   
-  const accountsStr = localStorage.getItem('weight_loss_accounts');
-  const accounts = accountsStr ? JSON.parse(accountsStr) : [];
-  const userIndex = accounts.findIndex(x => x.username.toLowerCase() === username.toLowerCase());
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  const originalText = submitBtn ? submitBtn.innerText : '';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerText = lang === 'en' ? 'Saving...' : '保存中...';
+  }
   
-  if (userIndex > -1) {
-    accounts[userIndex].password = newPass;
-    accounts[userIndex].securityQuestion = question;
-    accounts[userIndex].securityAnswer = answer;
-    localStorage.setItem('weight_loss_accounts', JSON.stringify(accounts));
+  try {
+    await syncAccountsWithCloud();
     
-    const remUser = localStorage.getItem('weight_loss_remember_username');
-    if (remUser && remUser.toLowerCase() === username.toLowerCase()) {
-      localStorage.setItem('weight_loss_remember_password', newPass);
+    const accountsStr = localStorage.getItem('weight_loss_accounts');
+    const accounts = accountsStr ? JSON.parse(accountsStr) : [];
+    const userIndex = accounts.findIndex(x => x.username.toLowerCase() === username.toLowerCase());
+    
+    if (userIndex > -1) {
+      accounts[userIndex].password = newPass;
+      accounts[userIndex].securityQuestion = question;
+      accounts[userIndex].securityAnswer = answer;
+      localStorage.setItem('weight_loss_accounts', JSON.stringify(accounts));
+      
+      if (typeof puter !== 'undefined' && puter.kv && navigator.onLine) {
+        await puter.kv.set('easyslim_global_accounts', JSON.stringify(accounts));
+      }
+      
+      const remUser = localStorage.getItem('weight_loss_remember_username');
+      if (remUser && remUser.toLowerCase() === username.toLowerCase()) {
+        localStorage.setItem('weight_loss_remember_password', newPass);
+      }
+      
+      closeModal('securityModal');
+      showToast(lang === 'en' ? 'Credentials updated successfully!' : '🔑 账号密保设置修改成功！');
     }
-    
-    closeModal('securityModal');
-    showToast(lang === 'en' ? 'Credentials updated successfully!' : '🔑 账号密保设置修改成功！');
+  } catch (err) {
+    console.error("Failed to save security settings", err);
+    errEl.innerText = lang === 'en' ? '❌ Failed to save. Please try again.' : '❌ 保存失败，请重试。';
+    errEl.style.display = 'block';
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerText = originalText;
+    }
   }
 }
 
@@ -5184,8 +5415,7 @@ window.exportAiReportPdf = exportAiReportPdf;
 // 🌐 HYBRID CLOUD SYNC & NETWORK STATUS
 // ==========================================
 async function syncDataWithCloud() {
-  if (!appState.currentUser || !appState.profile) return;
-  if (!appState.profile.unlockedFeatures || !appState.profile.unlockedFeatures.includes('cloud_sync')) return;
+  if (!appState.currentUser) return;
   if (!navigator.onLine) return;
   if (typeof puter === 'undefined' || !puter.kv) return;
   
@@ -5202,6 +5432,29 @@ async function syncDataWithCloud() {
       }
     }
     
+    if (!appState.profile) {
+      // Local profile is empty. If cloud profile exists, download it!
+      if (cloudData && cloudData.profile) {
+        appState.profile = cloudData.profile;
+        appState.records = cloudData.records || {};
+        
+        saveData();
+        
+        // If profileModal is open, close it
+        const profModal = document.getElementById('profileModal');
+        if (profModal && profModal.classList.contains('active')) {
+          closeModal('profileModal');
+        }
+        
+        updateUI();
+        showToast(appState.language === 'en' ? 'Downloaded profile & data from Cloud!' : '已自云端恢复您的个人档案及数据！');
+      }
+      return;
+    }
+    
+    // If we have a local profile, we sync if cloud_sync is unlocked!
+    if (!appState.profile.unlockedFeatures || !appState.profile.unlockedFeatures.includes('cloud_sync')) return;
+    
     const localUpdatedAt = appState.profile.updatedAt || 0;
     const cloudUpdatedAt = (cloudData && cloudData.profile && cloudData.profile.updatedAt) || 0;
     
@@ -5216,12 +5469,7 @@ async function syncDataWithCloud() {
       appState.profile = cloudData.profile;
       appState.records = cloudData.records;
       
-      const stateToSave = {
-        profile: appState.profile,
-        records: appState.records
-      };
-      localStorage.setItem('weight_loss_state_user_' + appState.currentUser, JSON.stringify(stateToSave));
-      
+      saveData();
       updateUI();
       showToast(appState.language === 'en' ? 'Downloaded updates from Cloud!' : '已从云端同步最新数据！');
     }
