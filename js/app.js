@@ -5552,6 +5552,10 @@ function updatePointsUI() {
   if (balanceEl) {
     balanceEl.innerHTML = `${points} <span style="font-size:16px; font-weight:600;">Pts</span>`;
   }
+  const pcUserPointsEl = document.getElementById('pcUserPoints');
+  if (pcUserPointsEl) {
+    pcUserPointsEl.innerHTML = `${points} <span style="font-size:16px; font-weight:600;">Pts</span>`;
+  }
   
   // 3. AI Clinic status
   const clinicStatusEl = document.getElementById('aiClinicStatusText');
