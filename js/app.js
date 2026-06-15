@@ -2289,8 +2289,19 @@ function renderCommunityProfileHome() {
   // Set user details
   const myUsernameEl = document.getElementById('comMyUsername');
   const myAvatarEl = document.getElementById('comMyAvatar');
-  if (myUsernameEl) myUsernameEl.innerText = appState.currentUser;
-  if (myAvatarEl) myAvatarEl.innerText = appState.currentUser.substring(0, 2).toUpperCase();
+  if (myUsernameEl) {
+    myUsernameEl.innerText = (appState.profile && appState.profile.nickname) || appState.currentUser;
+  }
+  if (myAvatarEl) {
+    const avatarVal = (appState.profile && appState.profile.avatar) || '';
+    if (avatarVal.startsWith('data:image')) {
+      myAvatarEl.innerHTML = `<img src="${avatarVal}" style="width:100%; height:100%; object-fit:cover;" />`;
+    } else if (avatarVal) {
+      myAvatarEl.innerHTML = avatarVal;
+    } else {
+      myAvatarEl.innerHTML = appState.currentUser.substring(0, 2).toUpperCase();
+    }
+  }
   
   const posts = getOrCreateCommunityPosts();
   const currentUser = appState.currentUser;
@@ -2625,11 +2636,21 @@ function renderCommunityPageOnly() {
       `;
     }
     
+    let avatarHtml = '';
+    const avatarVal = post.avatar || '';
+    if (avatarVal.startsWith('data:image')) {
+      avatarHtml = `<img src="${avatarVal}" style="width:100%; height:100%; object-fit:cover;" />`;
+    } else if (avatarVal) {
+      avatarHtml = avatarVal;
+    } else {
+      avatarHtml = post.user.substring(0, 2).toUpperCase();
+    }
+    
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
       <div class="post-header">
-        <div class="post-avatar">${post.avatar || post.user.substring(0, 2).toUpperCase()}</div>
+        <div class="post-avatar" style="overflow:hidden; display:flex; align-items:center; justify-content:center;">${avatarHtml}</div>
         <div class="post-user-info">
           <div class="post-username">
             <span>${post.nickname || post.user}</span>

@@ -563,17 +563,21 @@
 
         <!-- Personal homepage container -->
         <div id="communityProfileContent" style="display: none;">
-          <!-- Profile header card -->
           <div class="card" style="margin-bottom: 16px; background: linear-gradient(135deg, rgba(16,185,129,0.05), rgba(59,130,246,0.05)); border: 1px solid var(--border-color);">
-            <div style="display:flex; align-items:center; gap:20px; padding: 10px 0;">
-              <div id="comMyAvatar" style="width:72px; height:72px; border-radius:50%; background: linear-gradient(135deg, var(--primary), var(--accent-blue)); color: white; display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:bold; box-shadow: var(--shadow-md);">R</div>
-              <div style="display:flex; flex-direction:column; gap:6px;">
-                <h3 id="comMyUsername" style="font-size:20px; font-weight:700; color:var(--text-main); margin:0;">Ruby</h3>
-                <div style="display:flex; gap:16px; font-size:12px; color:var(--text-muted);">
-                  <span>关注: <strong id="comFollowCount" style="color:var(--text-main);">0</strong></span>
-                  <span>获赞: <strong id="comLikesReceivedCount" style="color:var(--text-main);">0</strong></span>
+            <div style="display:flex; align-items:center; justify-content:space-between; width:100%; padding: 10px 0;">
+              <div style="display:flex; align-items:center; gap:20px;">
+                <div id="comMyAvatar" style="width:72px; height:72px; border-radius:50%; background: linear-gradient(135deg, var(--primary), var(--accent-blue)); color: white; display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:bold; box-shadow: var(--shadow-md); overflow:hidden;">R</div>
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                  <h3 id="comMyUsername" style="font-size:20px; font-weight:700; color:var(--text-main); margin:0;">Ruby</h3>
+                  <div style="display:flex; gap:16px; font-size:12px; color:var(--text-muted);">
+                    <span>关注: <strong id="comFollowCount" style="color:var(--text-main);">0</strong></span>
+                    <span>获赞: <strong id="comLikesReceivedCount" style="color:var(--text-main);">0</strong></span>
+                  </div>
                 </div>
               </div>
+              <button class="btn btn-secondary btn-sm" onclick="openCommunityProfileEdit()" style="padding: 8px 14px; border-radius: 10px; display: flex; align-items: center; gap: 6px; font-size: 12px; height: fit-content; white-space: nowrap;">
+                ✏️ 编辑社群资料
+              </button>
             </div>
           </div>
           
@@ -1276,7 +1280,7 @@
   <!-- Scripts -->
   <script src="js/food_db.js"></script>
   <script src="js/recipes.js"></script>
-  <script src="js/app.js?v=30"></script>
+  <script src="js/app.js?v=31"></script>
   
   <script>
     // 绑定饮食记录里的单餐选择 Tab 事件
