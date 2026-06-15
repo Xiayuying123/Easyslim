@@ -1,5 +1,4 @@
 // Core Application Logic for Weight Loss Tracking Tool
-alert("Easyslim 21 已成功载入！");
 
 // 默认应用状态
 let appState = {
@@ -5681,5 +5680,3 @@ window.updateNetworkStatus = updateNetworkStatus;
 window.addEventListener('online', updateNetworkStatus);
 window.addEventListener('offline', updateNetworkStatus);
 setTimeout(updateNetworkStatus, 1000);
-
-alert("Easyslim 21 脚本完全执行完毕！");
