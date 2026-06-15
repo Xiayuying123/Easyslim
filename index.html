@@ -534,43 +534,83 @@
       <!-- ============================================== -->
       <section class="page-section" id="communitySection">
         
-        <!-- Post Form Card -->
-        <div class="card" style="margin-bottom: 16px;">
-          <div class="card-title">
-            <span id="communityPostTitle">发表今日减脂打卡</span>
-            <div class="icon-badge">✍️</div>
-          </div>
-          <form id="communityPostForm" style="display:flex; flex-direction:column; gap:12px;">
-            <div class="form-group">
-              <label for="communityPostContent" id="communityContentLabel">分享你的今日减脂心得或心情...</label>
-              <textarea id="communityPostContent" rows="3" placeholder="今天的水油焖鸡胸肉非常好吃，体重也掉了 0.3kg！" style="width:100%; border:1px solid var(--border-color); border-radius:12px; padding:12px; background:rgba(255,255,255,0.01); color:var(--text-main); font-family:inherit; resize:vertical;"></textarea>
-            </div>
-            
-            <!-- Attachments Toggle -->
-            <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--text-muted);">
-              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-                <input type="checkbox" id="postAttachWeight" checked style="accent-color:var(--primary);">
-                <span id="postAttachWeightText">附带今日体重数据</span>
-              </label>
-              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-                <input type="checkbox" id="postAttachDiet" checked style="accent-color:var(--primary);">
-                <span id="postAttachDietText">附带今日饮食记录</span>
-              </label>
-              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-                <input type="checkbox" id="postAttachExercise" checked style="accent-color:var(--primary);">
-                <span id="postAttachExerciseText">附带今日运动内容</span>
-              </label>
-            </div>
-            
-            <div style="display:flex; justify-content:flex-end;">
-              <button type="submit" class="btn btn-primary" id="btnPublishPost" style="padding:8px 24px; border-radius:12px;">发表打卡 (Share Post)</button>
-            </div>
-          </form>
+        <!-- Segment control for Plaza vs Personal Homepage -->
+        <div class="auth-tabs" style="margin-bottom: 16px; background: var(--bg-card);">
+          <button class="auth-tab-btn active" id="communityTabPlaza" type="button" onclick="switchCommunityTab('plaza')" style="flex:1;">社区广场 (Plaza)</button>
+          <button class="auth-tab-btn" id="communityTabProfile" type="button" onclick="switchCommunityTab('profile')" style="flex:1;">个人主页 (My Profile)</button>
         </div>
 
-        <!-- Community Feed -->
-        <div style="display:flex; flex-direction:column; gap:16px;" id="communityFeedContainer">
-          <!-- Dynamically populated posts -->
+        <!-- Plaza content container -->
+        <div id="communityPlazaContent">
+          <!-- Post Form Card -->
+          <div class="card" style="margin-bottom: 16px;">
+            <div class="card-title">
+              <span id="communityPostTitle">发表今日减脂打卡</span>
+              <div class="icon-badge">✍️</div>
+            </div>
+            <form id="communityPostForm" style="display:flex; flex-direction:column; gap:12px;">
+              <div class="form-group">
+                <label for="communityPostContent" id="communityContentLabel">分享你的今日减脂心得或心情...</label>
+                <textarea id="communityPostContent" rows="3" placeholder="今天的水油焖鸡胸肉非常好吃，体重也掉了 0.3kg！" style="width:100%; border:1px solid var(--border-color); border-radius:12px; padding:12px; background:rgba(255,255,255,0.01); color:var(--text-main); font-family:inherit; resize:vertical;"></textarea>
+              </div>
+              
+              <!-- Attachments Toggle -->
+              <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--text-muted);">
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                  <input type="checkbox" id="postAttachWeight" checked style="accent-color:var(--primary);">
+                  <span id="postAttachWeightText">附带今日体重数据</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                  <input type="checkbox" id="postAttachDiet" checked style="accent-color:var(--primary);">
+                  <span id="postAttachDietText">附带今日饮食记录</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                  <input type="checkbox" id="postAttachExercise" checked style="accent-color:var(--primary);">
+                  <span id="postAttachExerciseText">附带今日运动内容</span>
+                </label>
+              </div>
+              
+              <div style="display:flex; justify-content:flex-end;">
+                <button type="submit" class="btn btn-primary" id="btnPublishPost" style="padding:8px 24px; border-radius:12px;">发表打卡 (Share Post)</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Community Feed -->
+          <div style="display:flex; flex-direction:column; gap:16px;" id="communityFeedContainer">
+            <!-- Dynamically populated posts -->
+          </div>
+        </div>
+
+        <!-- Personal homepage container -->
+        <div id="communityProfileContent" style="display: none;">
+          <!-- Profile header card -->
+          <div class="card" style="margin-bottom: 16px; background: linear-gradient(135deg, rgba(16,185,129,0.05), rgba(59,130,246,0.05)); border: 1px solid var(--border-color);">
+            <div style="display:flex; align-items:center; gap:20px; padding: 10px 0;">
+              <div id="comMyAvatar" style="width:72px; height:72px; border-radius:50%; background: linear-gradient(135deg, var(--primary), var(--accent-blue)); color: white; display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:bold; box-shadow: var(--shadow-md);">R</div>
+              <div style="display:flex; flex-direction:column; gap:6px;">
+                <h3 id="comMyUsername" style="font-size:20px; font-weight:700; color:var(--text-main); margin:0;">Ruby</h3>
+                <div style="display:flex; gap:16px; font-size:12px; color:var(--text-muted);">
+                  <span>关注: <strong id="comFollowCount" style="color:var(--text-main);">0</strong></span>
+                  <span>获赞: <strong id="comLikesReceivedCount" style="color:var(--text-main);">0</strong></span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Sub-tabs in Personal Homepage -->
+          <div style="display:flex; background:var(--bg-input); border:1px solid var(--border-color); border-radius:12px; padding:4px; margin-bottom:16px; overflow-x:auto; gap:4px; -webkit-overflow-scrolling: touch;">
+            <button class="btn btn-secondary btn-sm active" id="subTabMyPosts" onclick="switchComSubTab('my_posts')" style="flex:1; white-space:nowrap; border:none; padding:8px 12px; font-size:12px; border-radius:8px;">📝 我的发帖</button>
+            <button class="btn btn-secondary btn-sm" id="subTabMyLikes" onclick="switchComSubTab('my_likes')" style="flex:1; white-space:nowrap; border:none; padding:8px 12px; font-size:12px; border-radius:8px;">❤️ 我的点赞</button>
+            <button class="btn btn-secondary btn-sm" id="subTabMyFavorites" onclick="switchComSubTab('my_favorites')" style="flex:1; white-space:nowrap; border:none; padding:8px 12px; font-size:12px; border-radius:8px;">⭐️ 我的收藏</button>
+            <button class="btn btn-secondary btn-sm" id="subTabHistory" onclick="switchComSubTab('history')" style="flex:1; white-space:nowrap; border:none; padding:8px 12px; font-size:12px; border-radius:8px;">👁️ 浏览记录</button>
+            <button class="btn btn-secondary btn-sm" id="subTabFollowing" onclick="switchComSubTab('following')" style="flex:1; white-space:nowrap; border:none; padding:8px 12px; font-size:12px; border-radius:8px;">👤 我的关注</button>
+          </div>
+          
+          <!-- List container for profile tabs -->
+          <div id="communityProfileListContainer" style="display:flex; flex-direction:column; gap:16px;">
+            <!-- Dynamically populated list -->
+          </div>
         </div>
 
       </section>
@@ -1064,7 +1104,7 @@
   <!-- Scripts -->
   <script src="js/food_db.js"></script>
   <script src="js/recipes.js"></script>
-  <script src="js/app.js?v=24"></script>
+  <script src="js/app.js?v=25"></script>
   
   <script>
     // 绑定饮食记录里的单餐选择 Tab 事件

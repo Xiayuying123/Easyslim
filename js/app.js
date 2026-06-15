@@ -105,9 +105,9 @@ function loadData() {
 }
 
 // 保存数据至 LocalStorage（隔离保存至独立用户key）
-function saveData() {
+function saveData(skipTimestampUpdate = false, skipCloudSync = false) {
   if (!appState.currentUser) return;
-  if (appState.profile) {
+  if (appState.profile && !skipTimestampUpdate) {
     appState.profile.updatedAt = Date.now();
   }
   const stateToSave = {
@@ -116,8 +116,8 @@ function saveData() {
   };
   localStorage.setItem('weight_loss_state_user_' + appState.currentUser, JSON.stringify(stateToSave));
   
-  // Trigger cloud sync asynchronously if cloud_sync is unlocked
-  if (appState.profile && appState.profile.unlockedFeatures && appState.profile.unlockedFeatures.includes('cloud_sync')) {
+  // Trigger cloud sync asynchronously
+  if (appState.profile && !skipCloudSync) {
     syncDataWithCloud();
   }
 }
@@ -2213,6 +2213,293 @@ function saveCommunityPosts(posts) {
   localStorage.setItem('weight_loss_community_posts', JSON.stringify(posts));
 }
 
+// Current active tabs inside the community tab
+let activeCommunityTab = 'plaza'; // 'plaza' or 'profile'
+let activeComSubTab = 'my_posts'; // 'my_posts', 'my_likes', 'my_favorites', 'history', 'following'
+
+function switchCommunityTab(tabId) {
+  activeCommunityTab = tabId;
+  const tabPlaza = document.getElementById('communityTabPlaza');
+  const tabProfile = document.getElementById('communityTabProfile');
+  const plazaContent = document.getElementById('communityPlazaContent');
+  const profileContent = document.getElementById('communityProfileContent');
+  
+  if (tabId === 'plaza') {
+    if (tabPlaza) tabPlaza.classList.add('active');
+    if (tabProfile) tabProfile.classList.remove('active');
+    if (plazaContent) plazaContent.style.display = 'block';
+    if (profileContent) profileContent.style.display = 'none';
+    renderCommunityPageOnly();
+  } else {
+    if (tabProfile) tabProfile.classList.add('active');
+    if (tabPlaza) tabPlaza.classList.remove('active');
+    if (plazaContent) plazaContent.style.display = 'none';
+    if (profileContent) profileContent.style.display = 'block';
+    renderCommunityProfileHome();
+  }
+}
+window.switchCommunityTab = switchCommunityTab;
+
+function switchComSubTab(subTabId) {
+  activeComSubTab = subTabId;
+  
+  const mapping = {
+    'my_posts': 'subTabMyPosts',
+    'my_likes': 'subTabMyLikes',
+    'my_favorites': 'subTabMyFavorites',
+    'history': 'subTabHistory',
+    'following': 'subTabFollowing'
+  };
+  
+  Object.keys(mapping).forEach(key => {
+    const btn = document.getElementById(mapping[key]);
+    if (btn) {
+      if (key === subTabId) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    }
+  });
+  
+  renderCommunityProfileList();
+}
+window.switchComSubTab = switchComSubTab;
+
+function renderCommunityProfileHome() {
+  if (!appState.currentUser) return;
+  
+  // Set user details
+  const myUsernameEl = document.getElementById('comMyUsername');
+  const myAvatarEl = document.getElementById('comMyAvatar');
+  if (myUsernameEl) myUsernameEl.innerText = appState.currentUser;
+  if (myAvatarEl) myAvatarEl.innerText = appState.currentUser.substring(0, 2).toUpperCase();
+  
+  const posts = getOrCreateCommunityPosts();
+  const currentUser = appState.currentUser;
+  
+  // Count follows
+  const followCount = (appState.profile && appState.profile.followedUsernames || []).length;
+  const followCountEl = document.getElementById('comFollowCount');
+  if (followCountEl) followCountEl.innerText = followCount;
+  
+  // Count likes received: sum of likes on posts written by this user
+  const myPosts = posts.filter(p => p.user.toLowerCase() === currentUser.toLowerCase());
+  const likesReceived = myPosts.reduce((acc, p) => acc + (p.likes || []).length, 0);
+  const likesReceivedEl = document.getElementById('comLikesReceivedCount');
+  if (likesReceivedEl) likesReceivedEl.innerText = likesReceived;
+  
+  // Render sub-list
+  renderCommunityProfileList();
+}
+
+function renderCommunityProfileList() {
+  const container = document.getElementById('communityProfileListContainer');
+  if (!container) return;
+  container.innerHTML = '';
+  
+  const posts = getOrCreateCommunityPosts();
+  const currentUser = appState.currentUser || 'Guest';
+  const lang = appState.language || 'zh';
+  
+  let listToRender = [];
+  
+  if (activeComSubTab === 'my_posts') {
+    listToRender = posts.filter(p => p.user.toLowerCase() === currentUser.toLowerCase());
+  } else if (activeComSubTab === 'my_likes') {
+    listToRender = posts.filter(p => p.likes.includes(currentUser));
+  } else if (activeComSubTab === 'my_favorites') {
+    const favIds = (appState.profile && appState.profile.favoritePostIds) || [];
+    listToRender = posts.filter(p => favIds.includes(p.id));
+  } else if (activeComSubTab === 'history') {
+    const viewedIds = (appState.profile && appState.profile.viewedPostIds) || [];
+    listToRender = posts
+      .filter(p => viewedIds.includes(p.id))
+      .sort((a, b) => viewedIds.indexOf(b.id) - viewedIds.indexOf(a.id));
+  } else if (activeComSubTab === 'following') {
+    const followed = (appState.profile && appState.profile.followedUsernames) || [];
+    if (followed.length === 0) {
+      container.innerHTML = `
+        <div style="text-align:center; padding:30px; color:var(--text-muted); font-size:13px;">
+          ${lang === 'en' ? 'No followed users yet!' : '您目前还没有关注任何人哦！'}
+        </div>
+      `;
+      return;
+    }
+    
+    followed.forEach(username => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style = "display:flex; justify-content:space-between; align-items:center; padding:16px 20px;";
+      card.innerHTML = `
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div class="post-avatar" style="margin:0;">${username.substring(0,2).toUpperCase()}</div>
+          <strong style="font-size:14px; color:var(--text-main);">${username}</strong>
+        </div>
+        <button onclick="toggleFollowUser(event, '${username}')" class="btn btn-secondary btn-sm" style="padding:4px 12px; font-size:12px;">
+          ${lang === 'en' ? 'Unfollow' : '取消关注'}
+        </button>
+      `;
+      container.appendChild(card);
+    });
+    return;
+  }
+  
+  if (listToRender.length === 0) {
+    container.innerHTML = `
+      <div style="text-align:center; padding:30px; color:var(--text-muted); font-size:13px;">
+        ${lang === 'en' ? 'No posts found here!' : '这里空空如也，去别处看看吧！'}
+      </div>
+    `;
+    return;
+  }
+  
+  // Render posts list
+  listToRender.forEach(post => {
+    const isLiked = post.likes.includes(currentUser);
+    const likeBtnClass = isLiked ? 'post-action-btn liked' : 'post-action-btn';
+    
+    const isFavorited = (appState.profile && appState.profile.favoritePostIds || []).includes(post.id);
+    const favBtnClass = isFavorited ? 'post-action-btn favorited' : 'post-action-btn';
+    const favIcon = isFavorited ? '★' : '☆';
+    
+    let attachHtml = '';
+    if (post.attachment) {
+      let itemsHtml = '';
+      if (post.attachment.weight) {
+        itemsHtml += `<div class="post-attachment-item"><span>⚖️</span> <span>${lang === 'en' ? 'Weight' : '体重'}: <strong>${post.attachment.weight}</strong></span></div>`;
+      }
+      if (post.attachment.diet) {
+        itemsHtml += `<div class="post-attachment-item"><span>🍳</span> <span>${lang === 'en' ? 'Diet' : '今日摄入'}: <strong>${post.attachment.diet}</strong></span></div>`;
+      }
+      if (post.attachment.exercise) {
+        itemsHtml += `<div class="post-attachment-item"><span>🏃</span> <span>${lang === 'en' ? 'Exercise' : '运动'}: <strong>${post.attachment.exercise}</strong></span></div>`;
+      }
+      if (itemsHtml) {
+        attachHtml = `<div class="post-attachment-box">${itemsHtml}</div>`;
+      }
+    }
+    
+    let commentsHtml = '';
+    if (post.comments && post.comments.length > 0) {
+      const listHtml = post.comments.map(c => {
+        let badgeHtml = '';
+        if (c.badge === 'coach') badgeHtml = `<span class="post-comment-user-badge coach">${lang === 'en' ? 'COACH' : '教练'}</span>`;
+        else if (c.badge === 'expert') badgeHtml = `<span class="post-comment-user-badge expert">${lang === 'en' ? 'EXPERT' : '达人'}</span>`;
+        else if (c.badge === 'me') badgeHtml = `<span class="post-comment-user-badge me" style="background:rgba(16,185,129,0.15); color:var(--primary);">${lang === 'en' ? 'ME' : '我'}</span>`;
+        return `<div class="post-comment-item"><span class="post-comment-user">${c.nickname || c.user}</span>${badgeHtml}<span class="post-comment-text">: ${c.text}</span></div>`;
+      }).join('');
+      commentsHtml = `<div class="post-comments-section">${listHtml}</div>`;
+    }
+    
+    const displayTime = lang === 'en' ? post.time : (post.timeZh || post.time);
+    
+    let badgeLabel = '';
+    if (post.badge === 'coach') badgeLabel = `<span class="post-badge coach">${lang === 'en' ? 'COACH' : '教练'}</span>`;
+    else if (post.badge === 'expert') badgeLabel = `<span class="post-badge expert">${lang === 'en' ? 'EXPERT' : '达人'}</span>`;
+    else if (post.badge === 'me' || post.user === currentUser) badgeLabel = `<span class="post-badge me">${lang === 'en' ? 'ME' : '我'}</span>`;
+    
+    let followBtnHtml = '';
+    if (post.user !== currentUser) {
+      const isFollowing = (appState.profile && appState.profile.followedUsernames || []).includes(post.user.toLowerCase());
+      const followText = isFollowing ? (lang === 'en' ? 'Following' : '已关注') : (lang === 'en' ? '+ Follow' : '+ 关注');
+      const followColor = isFollowing ? 'var(--text-muted)' : 'var(--primary)';
+      const followBg = isFollowing ? 'rgba(0,0,0,0.05)' : 'rgba(16,185,129,0.1)';
+      followBtnHtml = `
+        <button onclick="toggleFollowUser(event, '${post.user}')" style="margin-left:8px; border:none; background:${followBg}; color:${followColor}; font-size:11px; padding:2px 8px; border-radius:6px; cursor:pointer; font-weight:500;">
+          ${followText}
+        </button>
+      `;
+    }
+    
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="post-header">
+        <div class="post-avatar">${post.avatar || post.user.substring(0, 2).toUpperCase()}</div>
+        <div class="post-user-info">
+          <div class="post-username">
+            <span>${post.nickname || post.user}</span>
+            ${badgeLabel}
+            ${followBtnHtml}
+          </div>
+          <div class="post-time">${displayTime}</div>
+        </div>
+      </div>
+      <div class="post-content">${post.content}</div>
+      ${attachHtml}
+      <div class="post-actions">
+        <button class="${likeBtnClass}" onclick="togglePostLike('${post.id}')" style="display:flex; align-items:center; gap:4px; background:none; border:none; color:inherit; cursor:pointer;">
+          <span>❤️</span>
+          <span class="like-count">${post.likes.length}</span>
+        </button>
+        <button class="${favBtnClass}" onclick="togglePostFavorite('${post.id}')" style="display:flex; align-items:center; gap:4px; background:none; border:none; color:inherit; cursor:pointer; margin-left: 16px;">
+          <span style="font-size: 16px;">${favIcon}</span>
+          <span>${lang === 'en' ? 'Fav' : '收藏'}</span>
+        </button>
+        <div style="display:flex; align-items:center; gap:4px; margin-left: auto;">
+          <span>💬</span>
+          <span>${post.comments ? post.comments.length : 0}</span>
+        </div>
+      </div>
+      ${commentsHtml}
+    `;
+    container.appendChild(card);
+  });
+}
+
+function togglePostFavorite(postId) {
+  if (!appState.profile) return;
+  if (!appState.profile.favoritePostIds) {
+    appState.profile.favoritePostIds = [];
+  }
+  
+  const idx = appState.profile.favoritePostIds.indexOf(postId);
+  if (idx > -1) {
+    appState.profile.favoritePostIds.splice(idx, 1);
+    showToast(appState.language === 'en' ? 'Removed from favorites' : '⭐ 已取消收藏');
+  } else {
+    appState.profile.favoritePostIds.push(postId);
+    showToast(appState.language === 'en' ? 'Added to favorites' : '⭐ 收藏成功');
+  }
+  
+  saveData();
+  
+  if (activeCommunityTab === 'plaza') {
+    renderCommunityPageOnly();
+  } else {
+    renderCommunityProfileHome();
+  }
+}
+window.togglePostFavorite = togglePostFavorite;
+
+function toggleFollowUser(e, targetUser) {
+  if (e) e.stopPropagation();
+  if (!appState.profile) return;
+  if (!appState.profile.followedUsernames) {
+    appState.profile.followedUsernames = [];
+  }
+  
+  const userKey = targetUser.toLowerCase();
+  const idx = appState.profile.followedUsernames.indexOf(userKey);
+  if (idx > -1) {
+    appState.profile.followedUsernames.splice(idx, 1);
+    showToast(appState.language === 'en' ? `Unfollowed ${targetUser}` : `👤 已取消关注 ${targetUser}`);
+  } else {
+    appState.profile.followedUsernames.push(userKey);
+    showToast(appState.language === 'en' ? `Following ${targetUser}` : `👤 关注成功 ${targetUser}`);
+  }
+  
+  saveData();
+  
+  if (activeCommunityTab === 'plaza') {
+    renderCommunityPageOnly();
+  } else {
+    renderCommunityProfileHome();
+  }
+}
+window.toggleFollowUser = toggleFollowUser;
+
 function renderCommunityPageOnly() {
   const container = document.getElementById('communityFeedContainer');
   if (!container) return;
@@ -2225,6 +2512,22 @@ function renderCommunityPageOnly() {
   posts.forEach(post => {
     const isLiked = post.likes.includes(currentUser);
     const likeBtnClass = isLiked ? 'post-action-btn liked' : 'post-action-btn';
+    
+    const isFavorited = (appState.profile && appState.profile.favoritePostIds || []).includes(post.id);
+    const favBtnClass = isFavorited ? 'post-action-btn favorited' : 'post-action-btn';
+    const favIcon = isFavorited ? '★' : '☆';
+    
+    // Add to viewedPostIds (browsing history)
+    if (appState.profile) {
+      if (!appState.profile.viewedPostIds) appState.profile.viewedPostIds = [];
+      if (!appState.profile.viewedPostIds.includes(post.id)) {
+        appState.profile.viewedPostIds.push(post.id);
+        if (appState.profile.viewedPostIds.length > 50) {
+          appState.profile.viewedPostIds.shift();
+        }
+        setTimeout(saveData, 0);
+      }
+    }
     
     // Attachments section HTML
     let attachHtml = '';
@@ -2291,7 +2594,20 @@ function renderCommunityPageOnly() {
     if (post.badge === 'coach') badgeLabel = `<span class="post-badge coach">${lang === 'en' ? 'COACH' : '教练'}</span>`;
     else if (post.badge === 'expert') badgeLabel = `<span class="post-badge expert">${lang === 'en' ? 'EXPERT' : '达人'}</span>`;
     else if (post.badge === 'me' || post.user === currentUser) badgeLabel = `<span class="post-badge me">${lang === 'en' ? 'ME' : '我'}</span>`;
-
+    
+    let followBtnHtml = '';
+    if (post.user !== currentUser) {
+      const isFollowing = (appState.profile && appState.profile.followedUsernames || []).includes(post.user.toLowerCase());
+      const followText = isFollowing ? (lang === 'en' ? 'Following' : '已关注') : (lang === 'en' ? '+ Follow' : '+ 关注');
+      const followColor = isFollowing ? 'var(--text-muted)' : 'var(--primary)';
+      const followBg = isFollowing ? 'rgba(0,0,0,0.05)' : 'rgba(16,185,129,0.1)';
+      followBtnHtml = `
+        <button onclick="toggleFollowUser(event, '${post.user}')" style="margin-left:8px; border:none; background:${followBg}; color:${followColor}; font-size:11px; padding:2px 8px; border-radius:6px; cursor:pointer; font-weight:500;">
+          ${followText}
+        </button>
+      `;
+    }
+    
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
@@ -2301,6 +2617,7 @@ function renderCommunityPageOnly() {
           <div class="post-username">
             <span>${post.nickname || post.user}</span>
             ${badgeLabel}
+            ${followBtnHtml}
           </div>
           <div class="post-time">${displayTime}</div>
         </div>
@@ -2308,11 +2625,15 @@ function renderCommunityPageOnly() {
       <div class="post-content">${post.content}</div>
       ${attachHtml}
       <div class="post-actions">
-        <button class="${likeBtnClass}" onclick="togglePostLike('${post.id}')">
+        <button class="${likeBtnClass}" onclick="togglePostLike('${post.id}')" style="display:flex; align-items:center; gap:4px; background:none; border:none; color:inherit; cursor:pointer;">
           <span>❤️</span>
           <span class="like-count">${post.likes.length}</span>
         </button>
-        <div style="display:flex; align-items:center; gap:4px;">
+        <button class="${favBtnClass}" onclick="togglePostFavorite('${post.id}')" style="display:flex; align-items:center; gap:4px; background:none; border:none; color:inherit; cursor:pointer; margin-left: 16px;">
+          <span style="font-size: 16px;">${favIcon}</span>
+          <span>${lang === 'en' ? 'Fav' : '收藏'}</span>
+        </button>
+        <div style="display:flex; align-items:center; gap:4px; margin-left: auto;">
           <span>💬</span>
           <span>${post.comments ? post.comments.length : 0}</span>
         </div>
@@ -2324,6 +2645,19 @@ function renderCommunityPageOnly() {
 }
 
 function renderCommunityPage() {
+  activeCommunityTab = 'plaza';
+  const tabPlaza = document.getElementById('communityTabPlaza');
+  const tabProfile = document.getElementById('communityTabProfile');
+  const plazaContent = document.getElementById('communityPlazaContent');
+  const profileContent = document.getElementById('communityProfileContent');
+  
+  if (tabPlaza && tabProfile && plazaContent && profileContent) {
+    tabPlaza.classList.add('active');
+    tabProfile.classList.remove('active');
+    plazaContent.style.display = 'block';
+    profileContent.style.display = 'none';
+  }
+  
   renderCommunityPageOnly();
   const posts = getOrCreateCommunityPosts();
   syncCommunityWithCloud(posts);
@@ -2343,7 +2677,11 @@ function togglePostLike(postId) {
   }
   
   saveCommunityPosts(posts);
-  renderCommunityPageOnly();
+  if (activeCommunityTab === 'plaza') {
+    renderCommunityPageOnly();
+  } else {
+    renderCommunityProfileHome();
+  }
   syncCommunityWithCloud(posts);
 }
 window.togglePostLike = togglePostLike;
@@ -5612,7 +5950,7 @@ async function syncDataWithCloud() {
         appState.profile = cloudData.profile;
         appState.records = cloudData.records || {};
         
-        saveData();
+        saveData(true, true); // Save locally without bumping timestamp or calling sync again
         
         // If profileModal is open, close it
         const profModal = document.getElementById('profileModal');
@@ -5625,9 +5963,6 @@ async function syncDataWithCloud() {
       }
       return;
     }
-    
-    // If we have a local profile, we sync if cloud_sync is unlocked!
-    if (!appState.profile.unlockedFeatures || !appState.profile.unlockedFeatures.includes('cloud_sync')) return;
     
     const localUpdatedAt = appState.profile.updatedAt || 0;
     const cloudUpdatedAt = (cloudData && cloudData.profile && cloudData.profile.updatedAt) || 0;
@@ -5643,7 +5978,7 @@ async function syncDataWithCloud() {
       appState.profile = cloudData.profile;
       appState.records = cloudData.records;
       
-      saveData();
+      saveData(true, true); // Save locally without bumping timestamp or calling sync again
       updateUI();
       showToast(appState.language === 'en' ? 'Downloaded updates from Cloud!' : '已从云端同步最新数据！');
     }
@@ -5662,7 +5997,7 @@ function updateNetworkStatus() {
   
   if (navigator.onLine) {
     banner.style.display = 'none';
-    if (appState.currentUser && appState.profile && appState.profile.unlockedFeatures && appState.profile.unlockedFeatures.includes('cloud_sync')) {
+    if (appState.currentUser) {
       syncDataWithCloud();
     }
   } else {
@@ -5680,3 +6015,10 @@ window.updateNetworkStatus = updateNetworkStatus;
 window.addEventListener('online', updateNetworkStatus);
 window.addEventListener('offline', updateNetworkStatus);
 setTimeout(updateNetworkStatus, 1000);
+
+// Auto-polling sync data with cloud every 25 seconds if logged in and online
+setInterval(() => {
+  if (appState.currentUser && navigator.onLine) {
+    syncDataWithCloud();
+  }
+}, 25000);
