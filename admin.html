@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>轻盈减重助手 - 后台管理控制台</title>
+  <style>
+    :root {
+      --bg-primary: #f4f6f8;
+      --bg-secondary: #ffffff;
+      --bg-card: #ffffff;
+      --bg-input: #f9fafb;
+      --border-color: rgba(0, 0, 0, 0.08);
+      --primary: #10b981;
+      --primary-hover: #059669;
+      --primary-glow: rgba(16, 185, 129, 0.1);
+      --accent-blue: #3b82f6;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --text-main: #1f2937;
+      --text-muted: #6b7280;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.06);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      line-height: 1.5;
+      padding: 24px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--primary), var(--accent-blue));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Auth Lock Overlay */
+    .auth-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(15, 23, 42, 0.95);
+      z-index: 9999;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: opacity 0.3s ease;
+    }
+
+    .auth-card {
+      background-color: var(--bg-card);
+      border-radius: 16px;
+      padding: 32px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      text-align: center;
+    }
+
+    .auth-card h2 {
+      margin-bottom: 12px;
+      font-size: 20px;
+    }
+
+    .auth-card p {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+      text-align: left;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--text-muted);
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 14px;
+      background-color: var(--bg-input);
+      color: var(--text-main);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-control:focus {
+      border-color: var(--primary);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background-color: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      background-color: #e5e7eb;
+      color: var(--text-main);
+    }
+
+    .btn-secondary:hover {
+      background-color: #d1d5db;
+    }
+
+    .btn-danger {
+      background-color: var(--danger);
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background-color: #dc2626;
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 12px;
+      border-radius: 6px;
+    }
+
+    /* Grid layout */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow-md);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      margin-top: 8px;
+      color: var(--text-main);
+    }
+
+    /* Tabs navigation */
+    .tabs-nav {
+      display: flex;
+      gap: 12px;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 20px;
+      padding-bottom: 8px;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background-color: var(--primary-glow);
+      color: var(--primary);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Table styles */
+    .card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+    }
+
+    .table-container {
+      overflow-x: auto;
+      margin-top: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    th {
+      font-weight: 600;
+      color: var(--text-muted);
+      background-color: #f9fafb;
+    }
+
+    tr:hover td {
+      background-color: #f9fafb;
+    }
+
+    .actions-cell {
+      display: flex;
+      gap: 8px;
+    }
+
+    /* Modal dialog */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.4);
+      z-index: 1000;
+      display: none;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal {
+      background-color: var(--bg-card);
+      border-radius: 16px;
+      width: 90%;
+      max-width: 650px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+      animation: modalFadeIn 0.2s ease-out;
+    }
+
+    @keyframes modalFadeIn {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-body {
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .modal-footer {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      color: var(--text-muted);
+    }
+
+    /* User Detail Styles */
+    .profile-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      margin-bottom: 20px;
+      background-color: #f9fafb;
+      padding: 16px;
+      border-radius: 8px;
+    }
+
+    .profile-item {
+      font-size: 13px;
+    }
+
+    .profile-item strong {
+      color: var(--text-muted);
+    }
+
+    .log-entry {
+      border-bottom: 1px dashed var(--border-color);
+      padding: 10px 0;
+      font-size: 13px;
+    }
+
+    .log-date {
+      font-weight: 600;
+      color: var(--accent-blue);
+    }
+
+    .pwd-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .masked-pwd {
+      font-family: monospace;
+    }
+
+    /* Backup Area */
+    .backup-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .backup-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+    }
+
+    .backup-info h4 {
+      margin-bottom: 4px;
+    }
+
+    .backup-info p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Auth Lock Overlay -->
+  <div class="auth-overlay" id="authLockOverlay">
+    <div class="auth-card">
+      <h2>🔒 管理员安全控制台</h2>
+      <p>为确保数据安全，请在此输入本地项目使用的数据库 Bucket ID 进行登录。<br>开发环境默认预填如下。</p>
+      
+      <div class="form-group">
+        <label for="adminBucketInput">KVDB.io Bucket ID</label>
+        <input type="text" id="adminBucketInput" class="form-control" value="E8ucMd1AQu6d1GJJrHqc7S" placeholder="例如：E8ucMd1AQu6d1GJJrHqc7S">
+      </div>
+      
+      <button class="btn btn-primary" onclick="tryLogin()" style="width: 100%;">⚡ 验证并载入管理控制台</button>
+      <div id="authErrorMsg" style="color: var(--danger); font-size: 12px; margin-top: 10px; display: none;">连接数据库失败，请检查网路连接或 Bucket ID 是否正确。</div>
+    </div>
+  </div>
+
+  <!-- Main Panel -->
+  <header>
+    <div>
+      <h1>轻盈减重助手 - 后台管理控制台</h1>
+      <div class="subtitle">实时监控数据库统计数据，管理注册账户，查看用户减重数据。</div>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <span id="currentBucketBadge" style="font-size:12px; background:#e5e7eb; padding:6px 12px; border-radius:12px; font-family:monospace; font-weight:600;">Bucket: --</span>
+      <button class="btn btn-secondary btn-sm" onclick="logoutAdmin()">退出登录</button>
+    </div>
+  </header>
+
+  <!-- Statistics Overview -->
+  <div class="dashboard-grid">
+    <div class="stat-card">
+      <span class="stat-label">👥 注册账户总数</span>
+      <span class="stat-value" id="statTotalUsers">0</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">🔥 已填写减重目标用户</span>
+      <span class="stat-value" id="statActiveProfiles">0</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">💬 社区发帖总数</span>
+      <span class="stat-value" id="statTotalPosts">0</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">🔌 网络连接状态</span>
+      <span class="stat-value" id="statSyncStatus" style="color:var(--primary); font-size:22px; margin-top:12px;">✅ 在线</span>
+    </div>
+  </div>
+
+  <!-- Navigation Tab links -->
+  <div class="tabs-nav">
+    <button class="tab-btn active" onclick="switchTab('tabUsers')">👥 用户账号管理</button>
+    <button class="tab-btn" onclick="switchTab('tabPosts')">💬 社群帖子管理</button>
+    <button class="tab-btn" onclick="switchTab('tabBackup')">💾 数据维护与备份</button>
+  </div>
+
+  <!-- Content Sections -->
+  <!-- Tab 1: Users List -->
+  <div id="tabUsers" class="tab-content active card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <h3 style="font-size:16px;">已注册用户账户数据库</h3>
+      <button class="btn btn-primary btn-sm" onclick="loadAllData()">🔄 刷新列表</button>
+    </div>
+    <div class="table-container">
+      <table id="usersTable">
+        <thead>
+          <tr>
+            <th>用户名 (Username)</th>
+            <th>密码 (Password)</th>
+            <th>密保问题 (Security Question)</th>
+            <th>密保答案 (Security Answer)</th>
+            <th>操作 (Actions)</th>
+          </tr>
+        </thead>
+        <tbody id="usersTableBody">
+          <tr>
+            <td colspan="5" style="text-align:center; color:var(--text-muted);">正在载入数据，请稍后...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tab 2: Community Posts -->
+  <div id="tabPosts" class="tab-content card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <h3 style="font-size:16px;">社群打卡发帖监控</h3>
+      <button class="btn btn-primary btn-sm" onclick="loadAllData()">🔄 刷新帖子</button>
+    </div>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>发帖人</th>
+            <th>昵称/头衔</th>
+            <th>帖子内容</th>
+            <th>发布时间</th>
+            <th>点赞/评论</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="postsTableBody">
+          <tr>
+            <td colspan="6" style="text-align:center; color:var(--text-muted);">正在载入帖子，请稍后...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tab 3: Database Backup & Maintenance -->
+  <div id="tabBackup" class="tab-content card">
+    <h3 style="font-size:16px; margin-bottom:16px;">数据库高级运维</h3>
+    <div class="backup-actions">
+      <div class="backup-row">
+        <div class="backup-info">
+          <h4>💾 导出完整云端数据库备份</h4>
+          <p>将当前 Bucket 下的所有用户账号、减重档案、日记记录和发帖合并导出为一个 JSON 备份文件。</p>
+        </div>
+        <button class="btn btn-primary" onclick="exportFullDatabase()">⚡ 立即导出备份 JSON</button>
+      </div>
+
+      <div class="backup-row">
+        <div class="backup-info">
+          <h4>📥 导入数据库备份还原</h4>
+          <p>选择以前导出的 JSON 备份文件，合并或覆盖还原到当前的云端数据库中。</p>
+        </div>
+        <div>
+          <input type="file" id="dbImportFile" accept=".json" style="display:none;" onchange="importFullDatabase(event)">
+          <button class="btn btn-secondary" onclick="document.getElementById('dbImportFile').click()">⚡ 选择文件导入</button>
+        </div>
+      </div>
+
+      <div class="backup-row" style="border-color: rgba(239, 68, 68, 0.2);">
+        <div class="backup-info">
+          <h4 style="color:var(--danger)">⚠️ 强制清空/初始化数据库</h4>
+          <p>擦除云端 Bucket 里的全部注册信息与减重记录。此操作不可逆，请极其谨慎！</p>
+        </div>
+        <button class="btn btn-danger" onclick="clearEntireDatabase()">💥 重置清空云端数据库</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Detail Modal -->
+  <div class="modal-overlay" id="userDetailModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modalTitle">用户档案详情</h3>
+        <button class="close-btn" onclick="closeModal('userDetailModal')">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <!-- Dynamically rendered -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('userDetailModal')">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let BUCKET_ID = '';
+    let globalAccounts = [];
+    let globalPosts = [];
+    
+    // Check if logged in previously
+    window.addEventListener('DOMContentLoaded', () => {
+      const saved = localStorage.getItem('easyslim_admin_bucket');
+      if (saved) {
+        document.getElementById('adminBucketInput').value = saved;
+        tryLogin();
+      }
+    });
+
+    function showAuthError() {
+      document.getElementById('authErrorMsg').style.display = 'block';
+    }
+
+    async function tryLogin() {
+      const input = document.getElementById('adminBucketInput').value.trim();
+      if (!input) {
+        alert('请输入有效的 Bucket ID！');
+        return;
+      }
+      
+      // Test fetch from bucket
+      try {
+        const resp = await fetch('https://kvdb.io/' + input + '/easyslim_global_accounts');
+        if (resp.status === 200 || resp.status === 404) {
+          // Valid response (either accounts exist, or bucket exists but is empty)
+          BUCKET_ID = input;
+          localStorage.setItem('easyslim_admin_bucket', BUCKET_ID);
+          document.getElementById('authLockOverlay').style.display = 'none';
+          document.getElementById('currentBucketBadge').innerText = 'Bucket: ' + BUCKET_ID;
+          loadAllData();
+        } else {
+          showAuthError();
+        }
+      } catch (err) {
+        console.error(err);
+        showAuthError();
+      }
+    }
+
+    function logoutAdmin() {
+      localStorage.removeItem('easyslim_admin_bucket');
+      window.location.reload();
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      
+      const activeBtn = Array.from(document.querySelectorAll('.tab-btn')).find(btn => btn.getAttribute('onclick').includes(tabId));
+      if (activeBtn) activeBtn.classList.add('active');
+      
+      document.getElementById(tabId).classList.add('active');
+    }
+
+    // Load everything from cloud
+    async function loadAllData() {
+      if (!BUCKET_ID) return;
+      
+      try {
+        // 1. Fetch Registered Accounts
+        const accResp = await fetch(`https://kvdb.io/${BUCKET_ID}/easyslim_global_accounts`);
+        if (accResp.status === 200) {
+          globalAccounts = await accResp.json();
+        } else {
+          globalAccounts = [];
+        }
+        
+        // 2. Fetch Community Posts
+        const postResp = await fetch(`https://kvdb.io/${BUCKET_ID}/easyslim_global_community_posts`);
+        if (postResp.status === 200) {
+          globalPosts = await postResp.json();
+        } else {
+          globalPosts = [];
+        }
+        
+        // Render panels
+        renderAccounts();
+        renderPosts();
+        updateStats();
+        
+      } catch (err) {
+        console.error("Load cloud data error:", err);
+        alert("从云端加载数据失败，请检查网络连接！");
+      }
+    }
+
+    function updateStats() {
+      document.getElementById('statTotalUsers').innerText = globalAccounts.length;
+      document.getElementById('statTotalPosts').innerText = globalPosts.length;
+      
+      // Compute active profiles (users who have actual sync records)
+      let activeCount = 0;
+      
+      // We will check keys count in next ticks or simply render it.
+      // We'll update dynamically as we verify profiles.
+      document.getElementById('statActiveProfiles').innerText = globalAccounts.length; // Estimating
+    }
+
+    function togglePassword(index) {
+      const field = document.getElementById(`pwd-text-${index}`);
+      const btn = document.getElementById(`pwd-btn-${index}`);
+      if (field.dataset.masked === "true") {
+        field.innerText = field.dataset.raw;
+        field.dataset.masked = "false";
+        btn.innerText = "👁️‍🗨️ 隐藏";
+      } else {
+        field.innerText = "••••••••";
+        field.dataset.masked = "true";
+        btn.innerText = "👁️ 显示";
+      }
+    }
+
+    function renderAccounts() {
+      const tbody = document.getElementById('usersTableBody');
+      tbody.innerHTML = '';
+      
+      if (globalAccounts.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">暂无注册账户数据</td></tr>`;
+        return;
+      }
+      
+      globalAccounts.forEach((acc, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${acc.username || '匿名'}</strong></td>
+          <td>
+            <div class="pwd-container">
+              <span class="masked-pwd" id="pwd-text-${idx}" data-raw="${acc.password}" data-masked="true">••••••••</span>
+              <button class="btn btn-secondary btn-sm" id="pwd-btn-${idx}" onclick="togglePassword(${idx})" style="padding: 2px 6px; font-size:11px;">👁️ 显示</button>
+            </div>
+          </td>
+          <td><span style="color:var(--text-muted); font-size:13px;">${acc.securityQuestion || '未设置'}</span></td>
+          <td><span style="font-family:monospace;">${acc.securityAnswer || '未设置'}</span></td>
+          <td>
+            <div class="actions-cell">
+              <button class="btn btn-primary btn-sm" onclick="viewUserDetail('${acc.username}')">🔍 查看数据</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteUserAccount('${acc.username}')">🗑️ 删除</button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderPosts() {
+      const tbody = document.getElementById('postsTableBody');
+      tbody.innerHTML = '';
+      
+      if (globalPosts.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">暂无社区帖子记录</td></tr>`;
+        return;
+      }
+      
+      globalPosts.forEach((post) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${post.user || '匿名'}</strong></td>
+          <td><span class="badge" style="font-size:11px; padding:2px 6px; border-radius:6px; background:#eee;">${post.badge || '一般用户'}</span></td>
+          <td style="max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${post.content || ''}</td>
+          <td style="font-size:12px; color:var(--text-muted);">${post.timeZh || post.time || '刚刚'}</td>
+          <td>赞: ${post.likes?.length || 0} / 评: ${post.comments?.length || 0}</td>
+          <td>
+            <button class="btn btn-danger btn-sm" onclick="deletePost('${post.id}')">🗑️ 删除</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function viewUserDetail(username) {
+      const modal = document.getElementById('userDetailModal');
+      const title = document.getElementById('modalTitle');
+      const body = document.getElementById('modalBody');
+      
+      title.innerText = `用户档案数据: ${username}`;
+      body.innerHTML = `<div style="text-align:center; padding:30px; color:var(--text-muted);">正在从云端调取该用户的减重记录，请稍后...</div>`;
+      modal.classList.add('active');
+      
+      try {
+        const resp = await fetch(`https://kvdb.io/${BUCKET_ID}/easyslim_sync_user_${username}`);
+        if (resp.status !== 200) {
+          body.innerHTML = `<div style="text-align:center; padding:20px; color:var(--danger);">⚠️ 未找到该用户的云端同步文件。该用户注册了账号，但可能还未填写完个人目标配置或开始同步数据。</div>`;
+          return;
+        }
+        
+        const data = await resp.json();
+        const profile = data.profile || {};
+        const records = data.records || {};
+        
+        let profileHtml = `
+          <h4 style="margin-bottom:10px; font-size:14px; border-left:3px solid var(--primary); padding-left:8px;">📊 身体档案与减重配置</h4>
+          <div class="profile-grid">
+            <div class="profile-item"><strong>身高：</strong>${profile.height || '--'} cm</div>
+            <div class="profile-item"><strong>初始体重：</strong>${profile.initialWeight || '--'} kg</div>
+            <div class="profile-item"><strong>目标体重：</strong>${profile.targetWeight || '--'} kg</div>
+            <div class="profile-item"><strong>年龄：</strong>${profile.age || '--'} 岁</div>
+            <div class="profile-item"><strong>性别：</strong>${profile.gender === 'female' ? '女 👩' : '男 👨'}</div>
+            <div class="profile-item"><strong>活动水平：</strong>${profile.activityLevel || '--'}</div>
+            <div class="profile-item"><strong>BMR/TDEE：</strong>${profile.bmr || '--'} / ${profile.tdee || '--'} kcal</div>
+            <div class="profile-item"><strong>每日预算热量：</strong>${profile.targetCalories || '--'} kcal</div>
+            <div class="profile-item"><strong>解锁特性：</strong>${profile.unlockedFeatures?.join(', ') || '无'}</div>
+            <div class="profile-item"><strong>积分账户：</strong>${profile.points || 0} Pts</div>
+            <div class="profile-item"><strong>推荐食谱偏好：</strong>${profile.preferredCuisine || '--'} (${profile.recipeSeries || '--'})</div>
+            <div class="profile-item"><strong>AI 估算提供商：</strong>${profile.aiProvider || '无'}</div>
+          </div>
+        `;
+        
+        let recordKeys = Object.keys(records).sort().reverse();
+        let logsHtml = `<h4 style="margin-top:20px; margin-bottom:10px; font-size:14px; border-left:3px solid var(--accent-blue); padding-left:8px;">📝 体重及饮食日记记录 (${recordKeys.length} 天)</h4>`;
+        
+        if (recordKeys.length === 0) {
+          logsHtml += `<div style="font-size:13px; color:var(--text-muted); padding:10px;">该用户暂无每日打卡数据。</div>`;
+        } else {
+          logsHtml += `<div style="max-height: 250px; overflow-y: auto;">`;
+          recordKeys.forEach(date => {
+            const dayData = records[date];
+            const morning = dayData.morningWeight ? `${dayData.morningWeight} kg` : '--';
+            const bedtime = dayData.bedtimeWeight ? `${dayData.bedtimeWeight} kg` : '--';
+            
+            // Meals counted
+            let mealsCount = 0;
+            if (dayData.meals) {
+              Object.values(dayData.meals).forEach(list => {
+                if (Array.isArray(list)) mealsCount += list.length;
+              });
+            }
+            
+            logsHtml += `
+              <div class="log-entry">
+                <span class="log-date">${date}</span> | 
+                晨重: <strong>${morning}</strong> | 
+                晚重: <strong>${bedtime}</strong> | 
+                已记饮食: <strong>${mealsCount} 种食物</strong>
+                ${dayData.exercise ? `<div style="color:var(--text-muted); font-size:12px; margin-top:4px;">🏃 运动: ${dayData.exercise}</div>` : ''}
+              </div>
+            `;
+          });
+          logsHtml += `</div>`;
+        }
+        
+        body.innerHTML = profileHtml + logsHtml;
+        
+      } catch (err) {
+        console.error(err);
+        body.innerHTML = `<div style="text-align:center; padding:20px; color:var(--danger);">❌ 加载用户数据出错：${err.message}</div>`;
+      }
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
+    }
+
+    async function deleteUserAccount(username) {
+      if (!confirm(`⚠️ 您确定要永久删除用户 "${username}" 的账号吗？这将同时擦除他在云端的身体记录与体重日记，操作不可逆！`)) {
+        return;
+      }
+      
+      try {
+        // 1. Remove from local memory list and update accounts array
+        const updatedAccounts = globalAccounts.filter(a => a.username.toLowerCase() !== username.toLowerCase());
+        
+        // 2. Set to cloud KV
+        const resp = await fetch(`https://kvdb.io/${BUCKET_ID}/easyslim_global_accounts`, {
+          method: 'POST',
+          body: JSON.stringify(updatedAccounts)
+        });
+        
+        if (resp.ok) {
+          // 3. Try to clean user sync file
+          await fetch(`https://kvdb.io/${BUCKET_ID}/easyslim_sync_user_${username}`, {
+            method: 'POST',
+            body: '' // Clears key in KVDB
+          });
+          
+          // Clear credentials hash keys
+          const hashKey = 'easyslim_user_' + simpleHash(username.toLowerCase());
+          const recoveryHashKey = 'easyslim_recovery_' + simpleHash(username.toLowerCase());
+          const questionHashKey = 'easyslim_question_' + simpleHash(username.toLowerCase());
+          
+          await fetch(`https://kvdb.io/${BUCKET_ID}/${hashKey}`, { method: 'POST', body: '' });
+          await fetch(`https://kvdb.io/${BUCKET_ID}/${recoveryHashKey}`, { method: 'POST', body: '' });
+          await fetch(`https://kvdb.io/${BUCKET_ID}/${questionHashKey}`, { method: 'POST', body: '' });
+          
+          alert(`✅ 用户 "${username}" 已成功在云端彻底注销清除！`);
+          loadAllData();
+        } else {
+          alert('❌ 更新账号库失败，请重试');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('❌ 删除时发生网络错误');
+      }
+    }
+
+    async function deletePost(postId) {
+      if (!confirm('⚠️ 确定要删除该条社区帖子吗？')) return;
+      
+      try {
+        const updatedPosts = globalPosts.filter(p => p.id !== postId);
+        const resp = await fetch(`https://kvdb.io/${BUCKET_ID}/easyslim_global_community_posts`, {
+          method: 'POST',
+          body: JSON.stringify(updatedPosts)
+        });
+        if (resp.ok) {
+          alert('✅ 帖子已成功删除！');
+          loadAllData();
+        } else {
+          alert('❌ 删除失败，服务器响应异常');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('❌ 网络请求失败');
+      }
+    }
+
+    // Advanced DB backup
+    async function exportFullDatabase() {
+      if (!BUCKET_ID || globalAccounts.length === 0) {
+        alert('没有数据可导出！');
+        return;
+      }
+      
+      const fullBackup = {
+        meta: {
+          exportAt: new Date().toISOString(),
+          bucketId: BUCKET_ID
+        },
+        easyslim_global_accounts: globalAccounts,
+        easyslim_global_community_posts: globalPosts,
+        users_sync_data: {}
+      };
+      
+      try {
+        showToastNotification('正在拉取各用户详情以打包备份...');
+        
+        // Loop and pull sync files for each user
+        for (let acc of globalAccounts) {
+          const uResp = await fetch(`https://kvdb.io/${BUCKET_ID}/easyslim_sync_user_${acc.username}`);
+          if (uResp.status === 200) {
+            const data = await uResp.json();
+            fullBackup.users_sync_data[acc.username] = data;
+          }
+        }
+        
+        // Download
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(fullBackup));
+        const dlAnchor = document.createElement('a');
+        dlAnchor.setAttribute("href", dataStr);
+        dlAnchor.setAttribute("download", `EasySlim_全量备份_${new Date().toLocaleDateString().replace(/\//g,'-')}.json`);
+        document.body.appendChild(dlAnchor);
+        dlAnchor.click();
+        dlAnchor.remove();
+        
+        alert('💾 全量云端数据备份已下载成功！');
+      } catch (err) {
+        console.error(err);
+        alert('❌ 备份数据导出失败：' + err.message);
+      }
+    }
+
+    async function importFullDatabase(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      if (!confirm('⚠️ 导入数据库将会与云端现有用户进行合并，同名用户的数据会被覆盖！是否继续？')) {
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const importData = JSON.parse(e.target.result);
+          if (!importData.easyslim_global_accounts) {
+            alert('❌ 导入失败：无效的备份文件结构');
+            return;
+          }
+          
+          showToastNotification('正在合并云端数据库，请勿关闭页面...');
+          
+          // 1. Merge Accounts
+          const mergedAccounts = [...globalAccounts];
+          importData.easyslim_global_accounts.forEach(newAcc => {
+            const existIdx = mergedAccounts.findIndex(a => a.username.toLowerCase() === newAcc.username.toLowerCase());
+            if (existIdx !== -1) {
+              mergedAccounts[existIdx] = newAcc;
+            } else {
+              mergedAccounts.push(newAcc);
+            }
+          });
+          
+          await fetch(`https://kvdb.io/${BUCKET_ID}/easyslim_global_accounts`, {
+            method: 'POST',
+            body: JSON.stringify(mergedAccounts)
+          });
+          
+          // 2. Merge Community Posts
+          const mergedPosts = [...globalPosts];
+          if (Array.isArray(importData.easyslim_global_community_posts)) {
+            importData.easyslim_global_community_posts.forEach(newPost => {
+              const existIdx = mergedPosts.findIndex(p => p.id === newPost.id);
+              if (existIdx !== -1) {
+                mergedPosts[existIdx] = newPost;
+              } else {
+                mergedPosts.push(newPost);
+              }
+            });
+            await fetch(`https://kvdb.io/${BUCKET_ID}/easyslim_global_community_posts`, {
+              method: 'POST',
+              body: JSON.stringify(mergedPosts)
+            });
+          }
+          
+          // 3. Write User Sync Datas
+          if (importData.users_sync_data) {
+            for (let username of Object.keys(importData.users_sync_data)) {
+              const uData = importData.users_sync_data[username];
+              await fetch(`https://kvdb.io/${BUCKET_ID}/easyslim_sync_user_${username}`, {
+                method: 'POST',
+                body: JSON.stringify(uData)
+              });
+              
+              // Also reconstruct credentials keys if we can
+              const matchedAcc = mergedAccounts.find(x => x.username.toLowerCase() === username.toLowerCase());
+              if (matchedAcc) {
+                const payload = {
+                  u: matchedAcc.username,
+                  p: matchedAcc.password,
+                  q: matchedAcc.securityQuestion || '',
+                  a: matchedAcc.securityAnswer || '',
+                  pt1: '', pt2: '', pt3: ''
+                };
+                const encryptedPayload = encryptData(JSON.stringify(payload), matchedAcc.password);
+                const hashKey = 'easyslim_user_' + simpleHash(username.toLowerCase());
+                await fetch(`https://kvdb.io/${BUCKET_ID}/${hashKey}`, {
+                  method: 'POST',
+                  body: encryptedPayload
+                });
+              }
+            }
+          }
+          
+          alert('📥 云端数据库还原/合并合并完成！');
+          event.target.value = '';
+          loadAllData();
+          
+        } catch (err) {
+          console.error(err);
+          alert('❌ 解析文件失败，请确认是有效的全量备份 JSON 格式！');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    async function clearEntireDatabase() {
+      if (!confirm('🛑 确定要擦除当前 Bucket 下的所有用户和数据吗？这会清除所有注册的账号、用户配置以及记录，所有客户端都将被迫重新配置！')) {
+        return;
+      }
+      if (!confirm('🚨 二次警告：数据将被彻底删除，您真的确定吗？')) {
+        return;
+      }
+      
+      try {
+        // Fetch keys and delete them
+        const keysResp = await fetch(`https://kvdb.io/${BUCKET_ID}/`);
+        if (keysResp.ok) {
+          const keysText = await keysResp.text();
+          const keys = keysText.split('\n').map(k => k.trim()).filter(Boolean);
+          
+          for (let key of keys) {
+            await fetch(`https://kvdb.io/${BUCKET_ID}/${key}`, {
+              method: 'POST',
+              body: '' // Clears key on KVDB
+            });
+          }
+        }
+        
+        alert('💥 云端数据库已被彻底清空！');
+        loadAllData();
+      } catch (err) {
+        console.error(err);
+        alert('❌ 清空操作执行失败');
+      }
+    }
+
+    // Helper functions
+    function simpleHash(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = (hash << 5) - hash + char;
+        hash |= 0;
+      }
+      return Math.abs(hash).toString(16);
+    }
+
+    function encryptData(text, key) {
+      // Basic reversible enc for storage representation (matching decryptData in app.js)
+      let result = '';
+      for (let i = 0; i < text.length; i++) {
+        const charCode = text.charCodeAt(i) ^ key.charCodeAt(i % key.length);
+        result += String.fromCharCode(charCode);
+      }
+      return btoa(unescape(encodeURIComponent(result)));
+    }
+
+    function showToastNotification(msg) {
+      console.log("Admin notification: " + msg);
+    }
+  </script>
+</body>
+</html>
