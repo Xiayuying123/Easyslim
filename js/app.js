@@ -209,6 +209,7 @@ function loadData() {
 }
 
 // 保存数据至 LocalStorage（隔离保存至独立用户key）
+// 保存数据：优先写入云端，再写入本地缓存
 function saveData(skipTimestampUpdate = false, skipCloudSync = false) {
   if (!appState.currentUser) return;
   if (appState.profile && !skipTimestampUpdate) {
@@ -218,13 +219,35 @@ function saveData(skipTimestampUpdate = false, skipCloudSync = false) {
     profile: appState.profile,
     records: appState.records
   };
-  localStorage.setItem('weight_loss_state_user_' + appState.currentUser, JSON.stringify(stateToSave));
-  
-  // Trigger cloud sync asynchronously
-  if (appState.profile && !skipCloudSync) {
-    syncDataWithCloud();
+
+  // 1. 优先推送至云端数据库（操作完成后立马上传）
+  if (appState.profile && !skipCloudSync && navigator.onLine) {
+    const cloudKey = `easyslim_sync_user_${appState.currentUser}`;
+    puterKvSetWithTimeout(cloudKey, JSON.stringify(stateToSave)).then(() => {
+      console.log('Successfully pushed modifications to cloud KVDB database first.');
+    }).catch(err => {
+      console.error('Failed to immediately push modifications to cloud KVDB database:', err);
+    });
   }
+
+  // 2. 写入本地浏览器缓存
+  localStorage.setItem('weight_loss_state_user_' + appState.currentUser, JSON.stringify(stateToSave));
 }
+
+// 手动保存数据至本地浏览器缓存按钮触发
+function saveDataToLocalBrowserCache() {
+  if (!appState.currentUser) {
+    showToast(appState.language === 'en' ? 'Please log in first!' : '❌ 请先登录账号！');
+    return;
+  }
+  const stateToSave = {
+    profile: appState.profile,
+    records: appState.records
+  };
+  localStorage.setItem('weight_loss_state_user_' + appState.currentUser, JSON.stringify(stateToSave));
+  showToast(appState.language === 'en' ? 'Data successfully written to local browser cache!' : '💾 已成功将当前数据存入本地浏览器缓存！');
+}
+window.saveDataToLocalBrowserCache = saveDataToLocalBrowserCache;
 
 // 检查是否需要配置个人身高体重信息
 function checkProfileRequirement() {
@@ -3713,7 +3736,7 @@ async function handleRegister(username, password) {
   localStorage.setItem('weight_loss_accounts', JSON.stringify(accounts));
   
   // Also push immediately to cloud KV
-  if (typeof puter !== 'undefined' && puter.kv && navigator.onLine) {
+  if (navigator.onLine) {
     try {
       await puterKvSetWithTimeout('easyslim_global_accounts', JSON.stringify(accounts));
     } catch (e) {
@@ -4015,7 +4038,7 @@ async function handleSaveSecurity(e) {
       accounts[userIndex].securityAnswer = answer;
       localStorage.setItem('weight_loss_accounts', JSON.stringify(accounts));
       
-      if (typeof puter !== 'undefined' && puter.kv && navigator.onLine) {
+      if (navigator.onLine) {
         await puterKvSetWithTimeout('easyslim_global_accounts', JSON.stringify(accounts));
       }
       
@@ -4163,7 +4186,7 @@ function handleDeviceImportConfirm() {
     localStorage.setItem('weight_loss_accounts', JSON.stringify(accounts));
     localStorage.setItem('weight_loss_current_user', payload.u);
     
-    if (typeof puter !== 'undefined' && puter.kv && navigator.onLine) {
+    if (navigator.onLine) {
       puterKvSetWithTimeout('easyslim_global_accounts', JSON.stringify(accounts)).catch(err => {
         console.error('Failed to sync accounts to cloud on device import', err);
       });
@@ -6647,7 +6670,7 @@ async function submitAccountSecurityUpdate() {
   localStorage.setItem('weight_loss_accounts', JSON.stringify(accounts));
   
   // Sync accounts list with Puter KV
-  if (typeof puter !== 'undefined' && puter.kv && navigator.onLine) {
+  if (navigator.onLine) {
     try {
       await puterKvSetWithTimeout('easyslim_global_accounts', JSON.stringify(accounts));
     } catch (e) {
@@ -6747,7 +6770,7 @@ async function submitRenameUsername() {
     localStorage.setItem('weight_loss_accounts', JSON.stringify(accounts));
     
     // Sync accounts list with Puter KV
-    if (typeof puter !== 'undefined' && puter.kv && navigator.onLine) {
+    if (navigator.onLine) {
       await puterKvSetWithTimeout('easyslim_global_accounts', JSON.stringify(accounts));
     }
     
@@ -6816,7 +6839,7 @@ async function submitRenameUsername() {
     
     if (communityModified) {
       saveCommunityPosts(posts);
-      if (typeof puter !== 'undefined' && puter.kv && navigator.onLine) {
+      if (navigator.onLine) {
         await puterKvSetWithTimeout('easyslim_global_community_posts', JSON.stringify(posts));
       }
     }
@@ -6990,7 +7013,7 @@ function updateUserCommunityIdentity(newNickname, newAvatar) {
   
   if (modified) {
     saveCommunityPosts(posts);
-    if (typeof puter !== 'undefined' && puter.kv && navigator.onLine) {
+    if (navigator.onLine) {
       puterKvSetWithTimeout('easyslim_global_community_posts', JSON.stringify(posts)).catch(err => {
         console.error('Failed to sync updated posts to cloud', err);
       });
