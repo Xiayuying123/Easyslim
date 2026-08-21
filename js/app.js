@@ -2996,7 +2996,7 @@ function handlePublishPost(e) {
 }
 
 // Puter operation wrappers modified to use the verified global kvdb.io bucket E8ucMd1AQu6d1GJJrHqc7S
-function puterKvGetWithTimeout(key, timeoutMs = 4000) {
+function puterKvGetWithTimeout(key, timeoutMs = 10000) {
   return new Promise((resolve, reject) => {
     const controller = new AbortController();
     const timer = setTimeout(() => {
@@ -3025,7 +3025,7 @@ function puterKvGetWithTimeout(key, timeoutMs = 4000) {
   });
 }
 
-function puterKvSetWithTimeout(key, val, timeoutMs = 4000) {
+function puterKvSetWithTimeout(key, val, timeoutMs = 10000) {
   return new Promise((resolve, reject) => {
     const controller = new AbortController();
     const timer = setTimeout(() => {
