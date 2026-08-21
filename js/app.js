@@ -859,7 +859,7 @@ function saveProfile() {
   const bmrTdee = window.calculateBMRAndTDEE(currentWeight, height, age, gender, activityLevel);
   const targetCals = window.calculateTargetCalories(currentWeight, targetWeight, durationMonths, bmrTdee);
   
-  const existingPoints = (appState.profile && appState.profile.points) !== undefined ? appState.profile.points : 100000000;
+  const existingPoints = (appState.profile && appState.profile.points !== undefined) ? appState.profile.points : 100000000;
   const existingPointsMigrated = (appState.profile && appState.profile.pointsMigrated) || false;
   const existingUnlocked = (appState.profile && appState.profile.unlockedFeatures) || [];
   if (!existingUnlocked.includes('cloud_sync')) {
